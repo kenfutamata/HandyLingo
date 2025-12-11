@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  sign-language-api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models
+      - ./app:/app/app
+    environment:
+      - TF_CPP_MIN_LOG_LEVEL=2
+    restart: unless-stopped
