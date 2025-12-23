@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 
-class AdminLoginController extends Controller
+class AdminLoginController extends Controller 
 {
 protected $auth;
 protected $firestore;

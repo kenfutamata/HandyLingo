@@ -54,7 +54,7 @@
 
             <form method="POST" action="{{route('admin.login.submit')}}" class="space-y-6">
                 @csrf
-                @method('POST');
+                @method('POST')
                 <div class="relative">
                     <label class="block text-gray-600 text-sm mb-1">Email</label>
                     <input
