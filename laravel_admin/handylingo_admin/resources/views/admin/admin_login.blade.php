@@ -7,6 +7,8 @@
     <title>Admin Login</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="icon" type="image/x-icon" href="{{asset('assets/admin/handylingologo.png')}}">
+
     <style>
         .loader {
             border: 3px solid #f3f3f3;
@@ -67,7 +69,7 @@
                 </div>
 
                 <div class="relative">
-                  <label class="block text-gray-600 text-sm mb-1">Password</label>
+                    <label class="block text-gray-600 text-sm mb-1">Password</label>
                     <input
                         type="password"
                         id="password"

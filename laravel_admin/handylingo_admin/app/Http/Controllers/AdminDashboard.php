@@ -8,7 +8,8 @@ use Illuminate\Support\Facades\Auth;
 class AdminDashboard extends Controller
 {
     public function index(){
-        return view('admin.admin_dashboard'); 
+        $user = Auth::guard('admin')->user();
+        return view('admin.admin_dashboard', compact('user')); 
     }
 
     public function logout(Request $request){
