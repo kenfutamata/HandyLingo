@@ -8,7 +8,6 @@
     <!-- Scripts -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Essential: Alpine.js for dropdowns and modals -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
     <link rel="icon" type="image/x-icon" href="{{asset('assets/admin/handylingologo.png')}}">
@@ -24,22 +23,22 @@
 
         .hidden-section { display: none; }
         
-        /* Custom scrollbar for a cleaner look */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
     </style>
 </head>
 
-<body class="bg-[#F8FAFC] font-sans text-slate-900 overflow-hidden">
-    <!-- Topbar Component -->
-    <x-admin_topbar :user="$user" />
+<body class="bg-[#F8FAFC] font-sans text-slate-900 overflow-hidden flex flex-col h-screen">
 
-    <div class="flex h-screen">
-        <!-- Sidebar Component -->
+    <div class="flex-none">
+        <x-admin_topbar :user="$user" />
+    </div>
+
+    <div class="flex flex-1 overflow-hidden">
+        
         <x-admin_sidebar />
 
-        <!-- MAIN CONTENT -->
         <main class="flex-1 overflow-y-auto p-4 md:p-8 pb-24">
             <div class="max-w-7xl mx-auto">
                 
@@ -51,6 +50,7 @@
                     </header>
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Stats Cards -->
                         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 group">
                             <div class="flex justify-between items-start">
                                 <div>
@@ -88,6 +88,7 @@
                         </div>
                     </div>
 
+                    <!-- Activity Log -->
                     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                         <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                             <h3 class="font-bold text-slate-800">Recent System Activity</h3>
@@ -109,59 +110,22 @@
         </main>
     </div>
 
-    <!-- Modals and Scripts follow same pattern as your upload... -->
-    
     <script>
-        // Initialize Icons on Load
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
         });
 
         window.showSection = (sectionId) => {
             document.querySelectorAll('main section').forEach(s => s.classList.add('hidden-section'));
-            document.getElementById(`section-${sectionId}`).classList.remove('hidden-section');
+            const targetSection = document.getElementById(`section-${sectionId}`);
+            if(targetSection) targetSection.classList.remove('hidden-section');
             
             document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
             const activeNav = document.getElementById(`nav-${sectionId}`);
             if(activeNav) activeNav.classList.add('active');
             
-            lucide.createIcons(); // Refresh icons for new section
-        };
-
-        function renderUsers(users) {
-            const tableBody = document.getElementById('user-table-body');
-            tableBody.innerHTML = users.map(u => `
-                <tr class="hover:bg-slate-50 transition-colors group">
-                    <td class="p-5">
-                        <div class="flex items-center">
-                            <div class="h-10 w-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold mr-3">
-                                ${u.displayName ? u.displayName.charAt(0) : 'U'}
-                            </div>
-                            <div>
-                                <p class="font-bold text-slate-800 leading-none">${u.displayName || 'Unnamed User'}</p>
-                                <p class="text-xs text-slate-500 mt-1">${u.email}</p>
-                            </div>
-                        </div>
-                    </td>
-                    <td class="p-5 font-mono text-[10px] text-slate-400 tracking-tighter uppercase">${u.uid}</td>
-                    <td class="p-5">
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${u.disabled ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}">
-                            ${u.disabled ? 'Disabled' : 'Active'}
-                        </span>
-                    </td>
-                    <td class="p-5">
-                        <div class="flex justify-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button class="p-2 text-slate-400 hover:text-blue-600"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
-                            <button class="p-2 text-slate-400 hover:text-red-600"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                        </div>
-                    </td>
-                </tr>
-            `).join('');
             lucide.createIcons();
-        }
-
-        window.openUserModal = () => document.getElementById('user-modal').classList.remove('hidden');
-        window.closeUserModal = () => document.getElementById('user-modal').classList.add('hidden');
+        };
     </script>
 </body>
 </html>
