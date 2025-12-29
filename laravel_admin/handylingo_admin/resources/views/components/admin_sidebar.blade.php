@@ -43,7 +43,7 @@
 
     <!-- FOOTER: Pinned to bottom -->
     <div class="flex-none p-4 border-t border-slate-700/50 mt-auto bg-[#1e293b]">
-        <form method="POST" action="{{ route('admin.logout') }}">
+        <form method="GET" action="{{ route('admin.logout') }}">
             @csrf
             <button type="submit"
                 class="flex items-center p-3 w-full text-slate-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all group">
