@@ -52,17 +52,11 @@
 
                     <!-- FILTERS -->
                     <div class="flex flex-col md:flex-row gap-4 mb-6">
-                        <div class="relative w-full md:w-1/3">
+                        <div class="relative w-full md:w-1/3"> 
                             <input type="text" placeholder="Search users..."
                                 class="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
                             <i data-lucide="search" class="w-4 h-4 absolute left-3 top-3 text-slate-400"></i>
                         </div>
-
-                        <select class="w-full md:w-40 px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                            <option>All Roles</option>
-                            <option>Admin</option>
-                            <option>User</option>
-                        </select>
                     </div>
 
                     <!-- TABLE -->
