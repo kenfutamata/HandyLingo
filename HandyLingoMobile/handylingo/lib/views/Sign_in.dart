@@ -110,11 +110,10 @@ class Sign_in extends StatelessWidget {
                 Align(
                   alignment: Alignment.center,
                   child: Text(
-                    "Or Sign in with",
+                    "Or Sign in using",
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       color: Colors.black,
-                      decoration: TextDecoration.underline,
                     ),
                   ),
                 ),
