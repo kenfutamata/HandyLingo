@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-
+import 'package:url_launcher/url_launcher.dart';
+import 'Sign_up.dart';
 class Sign_in extends StatelessWidget {
   const Sign_in({super.key});
 
@@ -117,10 +118,36 @@ class Sign_in extends StatelessWidget {
                     ),
                   ),
                 ),
+                //Google Sign in
                 const SizedBox(height: 24),
-                Image.asset(
-                  'assets/images/google.png',
+                InkWell(
+                  onTap: () async {
+                    const url = 'https://your-google-signin-url.com';
+                    if (await canLaunchUrl(Uri.parse(url))) {
+                      await launchUrl(Uri.parse(url));
+                    } else {
+                      throw 'Could not launch $url';
+                    }
+                  },
+                  child:
+              Image.asset(
+                'assets/images/google.png',
+              ),
+              ),
+              const SizedBox(height: 80),
+              InkWell(
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context)=> const Sign_Up()));
+                },
+                child: Text(
+                  "Don't have an account? Sign Up",
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: Colors.white,
+                    decoration: TextDecoration.underline,
+                  ),
                 ),
+              ),
               ],
             ),
           ),

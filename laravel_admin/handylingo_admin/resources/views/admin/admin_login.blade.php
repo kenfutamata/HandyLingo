@@ -8,6 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="icon" type="image/x-icon" href="{{asset('assets/admin/handylingologo.png')}}">
+    <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
         .loader {
@@ -59,17 +60,22 @@
                 @method('POST')
                 <div class="relative">
                     <label class="block text-gray-600 text-sm mb-1">Email</label>
+                    <!-- Icon -->
+                    <i data-lucide="mail" class="absolute left-3 top-10 w-5 h-5 text-gray-400"></i>
+                    <!-- Input -->
                     <input
                         type="email"
                         id="email"
                         name="email"
                         placeholder="Admin Email"
                         required
-                        class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all">
+                        class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg
+               focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all">
                 </div>
-
                 <div class="relative">
                     <label class="block text-gray-600 text-sm mb-1">Password</label>
+                    <i data-lucide="key" class="absolute left-3 top-10 w-5 h-5 text-gray-400"></i>
+
                     <input
                         type="password"
                         id="password"
@@ -103,6 +109,7 @@
                 setTimeout(() => notif.remove(), 500);
             }
         }, 2500);
+        lucide.createIcons();
     </script>
 </body>
 

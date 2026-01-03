@@ -55,7 +55,7 @@
                 <p class="text-[10px] text-slate-400 font-bold uppercase mt-1 tracking-tighter">{{ $user->role }}</p>
             </div>
             <div class="relative group cursor-pointer">
-                <img src="{{ asset('assets/job-provider/job-provider-dashboard/profile_pic.png') }}" 
+                <img src="{{ asset('assets/admin/handylingo.jpg') }}" 
                      class="w-10 h-10 rounded-xl border-2 border-white shadow-sm ring-1 ring-gray-200 group-hover:ring-blue-400 transition-all" />
                 <span class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full"></span>
             </div>
