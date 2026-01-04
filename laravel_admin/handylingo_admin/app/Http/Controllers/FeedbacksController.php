@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class FeedbacksController extends Controller
 {
@@ -11,7 +12,8 @@ class FeedbacksController extends Controller
      */
     public function index()
     {
-        //
+        $user = Auth::guard('admin')->user();
+        return view('admin.admin_feedbacks', compact('user'));
     }
 
     /**

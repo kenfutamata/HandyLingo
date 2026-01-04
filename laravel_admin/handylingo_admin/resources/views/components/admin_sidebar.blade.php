@@ -11,23 +11,24 @@
     <nav class="flex-1 min-h-0 px-4 py-4 space-y-1 overflow-y-auto custom-scrollbar">
 
         <a href="{{ route('admin.dashboard') }}" id="nav-dashboard"
-           class="sidebar-item w-full flex items-center p-3 rounded-lg transition-all
+            class="sidebar-item w-full flex items-center p-3 rounded-lg transition-all
            {{ request()->routeIs('admin.dashboard') ? 'active text-white bg-slate-800' : 'hover:text-white hover:bg-slate-800' }}">
             <i data-lucide="layout-dashboard" class="mr-3 w-5 h-5"></i>
             <span class="font-medium">Dashboard</span>
         </a>
 
         <a href="{{ route('admin.manage.users') }}" id="nav-users"
-           class="sidebar-item w-full flex items-center p-3 rounded-lg transition-all
+            class="sidebar-item w-full flex items-center p-3 rounded-lg transition-all
            {{ request()->routeIs('admin.manage.users') ? 'active text-white bg-slate-800' : 'hover:text-white hover:bg-slate-800' }}">
             <i data-lucide="users" class="mr-3 w-5 h-5"></i>
             <span class="font-medium">Users</span>
         </a>
 
-        <button onclick="showSection('feedback')" id="nav-feedback" class="sidebar-item w-full flex items-center p-3 rounded-lg transition-all hover:text-white hover:bg-slate-800">
+        <a href="{{route('admin.manage.feedbacks')}}" id="nav-feedback" class="sidebar-item w-full flex items-center p-3 rounded-lg transition-all 
+        {{ request()->routeIs('admin.manage.feedbacks') ? 'active text-white bg-slate-800' : 'hover:text-white hover:bg-slate-800' }}">
             <i data-lucide="message-square" class="mr-3 w-5 h-5"></i>
             <span class="font-medium">Feedback</span>
-        </button>
+        </a>
 
         <button onclick="showSection('updates')" id="nav-updates" class="sidebar-item w-full flex items-center p-3 rounded-lg transition-all hover:text-white hover:bg-slate-800">
             <i data-lucide="refresh-cw" class="mr-3 w-5 h-5"></i>
