@@ -1,23 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'views/Sign_in.dart'; // Ensure this path is correct
+import 'views/Sign_in.dart'; 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-Future<void> main() async {
+
+void main() async{
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
   await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL']!,
-    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+  url: dotenv.env['SUPABASE_URL'] ?? '', 
+  anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
   );
   runApp(
-    // ProviderScope must wrap the MaterialApp
     const ProviderScope(
-      child: MyApp(),
+      child: MyApp(), 
     ),
   );
 }
+
 
 
 class MyApp extends StatelessWidget {
