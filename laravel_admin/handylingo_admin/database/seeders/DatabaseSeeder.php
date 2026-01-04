@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Users;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
@@ -19,6 +20,7 @@ class DatabaseSeeder extends Seeder
         // User::factory(10)->create();
 
         Users::create([
+            'id' => Str::uuid(),
             'user_name' => 'adminuser',
             'first_name' => 'Admin',
             'last_name' => 'User',
