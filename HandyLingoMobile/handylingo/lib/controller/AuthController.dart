@@ -25,6 +25,8 @@ class AuthController {
         'first_name': firstName,
         'last_name': lastName,
         'email': email,
+        'role': 'user', 
+        'status': 'active', 
       });
 
       if (res.user == null) {
