@@ -13,7 +13,9 @@
     <link rel="icon" type="image/x-icon" href="{{ asset('assets/admin/handylingologo.png') }}">
 
     <style>
-        [x-cloak] { display: none !important; }
+        [x-cloak] {
+            display: none !important;
+        }
 
         .sidebar-item.active {
             color: #60a5fa !important;
@@ -21,11 +23,22 @@
             background: rgba(255, 255, 255, 0.05);
         }
 
-        .hidden-section { display: none; }
+        .hidden-section {
+            display: none;
+        }
 
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 10px;
+        }
     </style>
 </head>
 
@@ -50,14 +63,34 @@
                         </div>
                     </div>
 
-                    <!-- FILTERS -->
-                    <div class="flex flex-col md:flex-row gap-4 mb-6">
-                        <div class="relative w-full md:w-1/3"> 
-                            <input type="text" placeholder="Search users..."
-                                class="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                            <i data-lucide="search" class="w-4 h-4 absolute left-3 top-3 text-slate-400"></i>
+
+                    <form method="GET" action="{{ route('admin.manage.users') }}" class="mb-6">
+                        <div class="flex flex-col md:flex-row gap-4">
+                            <div class="relative w-full md:w-1/3">
+                                <i data-lucide="search"
+                                    class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                                </i>
+
+                                <input
+                                    type="text"
+                                    name="search"
+                                    placeholder="Search users..."
+                                    value="{{ request('search') }}"
+                                    class="w-full pl-11 pr-24 py-2.5 rounded-xl border border-slate-200 
+                       bg-white text-sm
+                       focus:outline-none focus:ring-2 focus:ring-blue-500 
+                       focus:border-blue-500 transition">
+                                <button
+                                    type="submit"
+                                    class="absolute right-1.5 top-1/2 -translate-y-1/2 
+                       bg-blue-500 hover:bg-blue-600 
+                       text-white text-sm font-medium 
+                       px-4 py-1.5 rounded-lg transition">
+                                    Search
+                                </button>
+                            </div>
                         </div>
-                    </div>
+                    </form>
 
                     <!-- TABLE -->
                     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
@@ -65,6 +98,7 @@
                             <thead class="bg-slate-50">
                                 <tr class="border-b border-slate-200 text-slate-500 text-xs uppercase font-bold">
                                     <th class="p-5">#</th>
+                                    <th class="p-5">First Name</th>
                                     <th class="p-5">First Name</th>
                                     <th class="p-5">Last Name</th>
                                     <th class="p-5">Email</th>
@@ -74,16 +108,18 @@
                                 </tr>
                             </thead>
                             <tbody id="user-table-body" class="divide-y divide-slate-100 text-sm">
+                                @foreach($users as $user)
                                 <tr class="hover:bg-slate-50 transition group">
-                                    <td class="p-5 text-slate-400">1</td>
-                                    <td class="p-5 font-semibold text-slate-700">Juan</td>
-                                    <td class="p-5 text-slate-600">Tamad</td>
-                                    <td class="p-5 text-slate-600">juantamad@gmail.com</td>
+                                    <td class="p-5 text-slate-400">{{$users->firstItem() + $loop->index}}</td>
+                                    <td class="p-5 font-semibold text-slate-700">{{$user->user_name}}</td>
+                                    <td class="p-5 font-semibold text-slate-700">{{$user->first_name}}</td>
+                                    <td class="p-5 text-slate-600">{{$user->last_name}}</td>
+                                    <td class="p-5 text-slate-600">{{$user->email}}</td>
                                     <td class="p-5">
-                                        <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">User</span>
+                                        <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">{{$user->role}}</span>
                                     </td>
                                     <td class="p-5">
-                                        <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">Active</span>
+                                        <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">{{$user->status}}</span>
                                     </td>
                                     <td class="p-5">
                                         <div class="flex justify-center gap-2 ">
@@ -98,6 +134,7 @@
                                     </td>
                                 </tr>
                             </tbody>
+                            @endforeach
                         </table>
                     </div>
                 </section>
@@ -125,7 +162,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
             const currentPath = window.location.pathname;
-            if(currentPath.includes('users')) {
+            if (currentPath.includes('users')) {
                 document.getElementById('nav-database')?.classList.add('active');
             }
         });
@@ -153,4 +190,5 @@
         }
     </script>
 </body>
+
 </html>

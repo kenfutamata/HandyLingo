@@ -55,7 +55,7 @@
                             <div class="flex justify-between items-start">
                                 <div>
                                     <p class="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Users</p>
-                                    <h3 id="stat-users" class="text-4xl font-bold mt-2 text-slate-800">...</h3>
+                                    <h3 id="stat-users" class="text-4xl font-bold mt-2 text-slate-800">{{$userCount}}</h3>
                                 </div>
                                 <div class="p-3 bg-blue-50 text-blue-600 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-colors">
                                     <i data-lucide="users" class="w-6 h-6"></i>
