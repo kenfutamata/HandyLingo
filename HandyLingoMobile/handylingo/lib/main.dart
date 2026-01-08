@@ -83,7 +83,7 @@ class _MyAppState extends ConsumerState<MyApp> {
       routes: {
         '/': (context) => const Sign_in(),
         // Define your home route here
-        '/home': (context) => const Scaffold(body: Center(child: Text("Welcome Home!"))),
+        '/home': (context) => const Sign_in(),
       },
     );
   }
