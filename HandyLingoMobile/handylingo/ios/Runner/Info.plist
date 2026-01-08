@@ -56,5 +56,11 @@
 				</array>
 			</dict>
 		</array>
+
+		<!-- Microphone and Camera usage descriptions -->
+		<key>NSMicrophoneUsageDescription</key>
+		<string>Used to convert your speech to text for translation.</string>
+		<key>NSCameraUsageDescription</key>
+		<string>Used to capture hand gestures for sign language translation.</string>
 	</dict>
 </plist>

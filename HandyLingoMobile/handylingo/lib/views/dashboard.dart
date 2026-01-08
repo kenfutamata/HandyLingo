@@ -7,8 +7,6 @@ class DashboardSLtoTA extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-
     return Scaffold(
       backgroundColor: const Color.fromRGBO(213, 232, 240, 1),
 
@@ -52,10 +50,7 @@ class DashboardSLtoTA extends StatelessWidget {
                 alignment: Alignment.center,
                 child: Text(
                   "Camera Feed",
-                  style: GoogleFonts.inter(
-                    color: Colors.white54,
-                    fontSize: 14,
-                  ),
+                  style: GoogleFonts.inter(color: Colors.white54, fontSize: 14),
                 ),
               ),
             ),
@@ -104,8 +99,7 @@ class DashboardSLtoTA extends StatelessWidget {
         ],
       ),
 
-      floatingActionButtonLocation:
-          FloatingActionButtonLocation.centerDocked,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
       /// Bottom Bar
       bottomNavigationBar: BottomAppBar(
@@ -139,10 +133,7 @@ class DashboardSLtoTA extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Icon(Icons.person, size: 22),
-                    Text(
-                      "Account",
-                      style: GoogleFonts.inter(fontSize: 10),
-                    ),
+                    Text("Account", style: GoogleFonts.inter(fontSize: 10)),
                   ],
                 ),
               ],

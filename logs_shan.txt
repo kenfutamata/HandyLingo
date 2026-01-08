@@ -1,0 +1,7 @@
+1-8-26 14:39: 
+Rear Camera Error (always loading)
+No Main Features: SL to Text/Audio and vice-versa
+Lacking About us Page
+Lacking Account Page
+Login Issue: 1st correct email and pass will refresh the login page but the 2nd page will proceed
+Login Issue: email/username textbox = remove @gmail.com/@yahoo.com/etc.
