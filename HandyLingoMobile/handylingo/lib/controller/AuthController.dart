@@ -15,6 +15,7 @@ class AuthController {
       final AuthResponse res = await _supabase.auth.signUp(
         email: email,
         password: password,
+        emailRedirectTo: 'com.example.handylingo://login-callback',
         data: {
           'user_name': userName,
           'first_name': firstName,

@@ -116,10 +116,14 @@
                                     <td class="p-5 text-slate-600">{{$user->last_name}}</td>
                                     <td class="p-5 text-slate-600">{{$user->email}}</td>
                                     <td class="p-5">
-                                        <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">{{$user->role}}</span>
+                                        @if($user->role == 'user')
+                                        <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">User</span>
+                                        @endif
                                     </td>
                                     <td class="p-5">
-                                        <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">{{$user->status}}</span>
+                                        @if($user->status == 'active')
+                                        <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">Active</span>
+                                        @endif
                                     </td>
                                     <td class="p-5">
                                         <div class="flex justify-center gap-2 ">
@@ -137,9 +141,104 @@
                             @endforeach
                         </table>
                     </div>
+                    @if($users->hasPages())
+                    <div class="p-5 border-t border-slate-100">
+                        {{ $users->links() }}
+                    </div>
+                    @endif
                 </section>
             </div>
         </main>
+    </div>
+    <div id="viewJobDetailsModal" class="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center hidden" aria-hidden="true" aria-modal="true" role="dialog">
+        <div class="relative bg-white rounded-lg w-full max-w-6xl mx-4 overflow-auto max-h-[90vh] p-8 flex flex-col gap-6 transform transition-all scale-95 opacity-0" id="modalContent">
+            <button onclick="closeViewJobDetailsModal()" class="absolute top-4 right-4 text-gray-600 hover:text-black text-2xl font-bold">&times;</button>
+
+            <div class="flex flex-col md:flex-row gap-6">
+                <div class="flex-shrink-0">
+                    <img id="modal-companyLogo" src="" alt="Company Logo" class="w-44 h-auto border rounded hidden" />
+                </div>
+                <div>
+                    <h2 id="modal-companyName" class="text-2xl font-semibold text-gray-800">Company Name</h2>
+                    <p id="modal-position" class="text-xl text-gray-700 mt-1">Position</p>
+                </div>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-6">
+                <div class="border w-full md:max-w-xs p-4 flex flex-col gap-4">
+                    <h3 class="text-lg font-semibold border-b pb-2">Job Information</h3>
+                    <div class="space-y-3 text-sm">
+                        <p><strong>Disability Type:</strong> <span id="modal-disabilityType" class="text-blue-600"></span></p>
+                        <p><strong>Salary:</strong> <span id="modal-salaryRange" class="text-blue-600"></span></p>
+                        <p><strong>Contact:</strong> <span id="modal-contactPhone" class="text-blue-600"></span></p>
+                        <p><strong>Email:</strong> <span id="modal-contactEmail" class="text-blue-600"></span></p>
+                        <p><strong>Environment:</strong> <span id="modal-workEnvironment" class="text-blue-600"></span></p>
+                        <p><strong>Category:</strong> <span id="modal-category" class="text-blue-600"></span></p>
+                        <p><strong>Company Address:</strong> <span id="modal-companyAddress" class="text-blue-600"></span></p>
+                    </div>
+                </div>
+
+                <div class="flex-1 flex flex-col gap-6">
+                    <div class="border p-4">
+                        <h3 class="text-lg font-semibold border-b pb-2 mb-2">Job Description</h3>
+                        <p id="modal-description" class="text-sm text-gray-700 leading-relaxed"></p>
+                    </div>
+                    <div class="border p-4">
+                        <h3 class="text-lg font-semibold border-b pb-2 mb-2">Educational Attainment</h3>
+                        <p id="modal-educationalAttainment" class="text-sm text-gray-700"></p>
+                    </div>
+                    <div class="border p-4">
+                        <h3 class="text-lg font-semibold border-b pb-2 mb-2">Skills</h3>
+                        <p id="modal-skills" class="text-sm text-gray-700"></p>
+                    </div>
+                    <div class="border p-4">
+                        <h3 class="text-lg font-semibold border-b pb-2 mb-2">Requirements</h3>
+                        <p id="modal-requirements" class="text-sm text-gray-700"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="viewProfileModal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 space-y-6">
+            <button onclick="closeUserModal()" class="absolute top-2 right-2 text-gray-500 hover:text-gray-700">&times;</button>
+            <h2 class="text-xl font-bold mb-4">Applicant Profile</h2>
+            <div class="space-y-2">
+                <label class="block text-xs text-gray-500">First Name:</label>
+                <input id="modal_firstName" class="w-full border rounded px-2 py-1" readonly placeholder="First Name">
+                <label class="block text-xs text-gray-500">Last Name:</label>
+                <input id="modal_lastName" class="w-full border rounded px-2 py-1" readonly placeholder="Last Name">
+                <label class="block text-xs text-gray-500">Email Address:</label>
+                <input id="modal_email" class="w-full border rounded px-2 py-1" readonly placeholder="Email">
+                <label class="block text-xs text-gray-500">Address:</label>
+                <input id="modal_address" class="w-full border rounded px-2 py-1" readonly placeholder="Address">
+                <label class="block text-xs text-gray-500">Province:</label>
+                <input id="modal_province" class="w-full border rounded px-2 py-1" readonly placeholder="Address">
+                <label class="block text-xs text-gray-500">City:</label>
+                <input id="modal_city" class="w-full border rounded px-2 py-1" readonly placeholder="Address">
+                <label class="block text-xs text-gray-500">Phone Number:</label>
+                <input id="modal_phoneNumber" class="w-full border rounded px-2 py-1" readonly placeholder="Phone Number">
+                <label class="block text-xs text-gray-500">Date of Birth:</label>
+                <input id="modal_dateOfBirth" class="w-full border rounded px-2 py-1" readonly placeholder="Date of Birth">
+                <label class="block text-xs text-gray-500">PWD ID:</label>
+                <input id="modal_pwdId" class="w-full border rounded px-2 py-1" readonly placeholder="PWD ID">
+                <label class="block text-xs text-gray-500">Disability:</label>
+                <input id="typeOfDisability" class="w-full border rounded px-2 py-1" readonly placeholder="Type of Disability">
+                <div>
+                    <label class="block text-xs text-gray-500">PWD Card:</label>
+                    <img id="modal_pwd_card" class="w-16 h-16 object-cover border rounded" style="display:none;">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500">Profile Picture:</label>
+                    <img id="modal_profilePicture" class="w-16 h-16 object-cover border rounded" style="display:none;">
+                </div>
+                <label class="block text-xs text-gray-500">Role:</label>
+                <input id="modal_role" class="w-full border rounded px-2 py-1" readonly placeholder="Role">
+                <label class="block text-xs text-gray-500">Status:</label>
+                <input id="modal_status" class="w-full border rounded px-2 py-1" readonly placeholder="Status">
+            </div>
+        </div>
     </div>
 
     <div id="DeleteUser" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[100] hidden">
