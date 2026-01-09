@@ -3,7 +3,7 @@ import 'user_guide.dart';
 import 'start_using.dart';
 
 class WelcomeDashboard extends StatelessWidget {
-  const WelcomeDashboard({Key? key}) : super(key: key);
+  const WelcomeDashboard({super.key});
 
   static const Color _bg = Color(0xFFEAF8FB); // light cyan background
   static const Color _primary = Color(0xFF33C7E6); // main cyan color

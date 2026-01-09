@@ -8,7 +8,7 @@ import 'account_page.dart';
 enum InputMode { signLanguage, text }
 
 class StartUsingPage extends StatefulWidget {
-  const StartUsingPage({Key? key}) : super(key: key);
+  const StartUsingPage({super.key});
 
   @override
   State<StartUsingPage> createState() => _StartUsingPageState();

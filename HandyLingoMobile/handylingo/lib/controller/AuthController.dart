@@ -122,23 +122,17 @@ class AuthController {
           .eq('user_name', credential)
           .maybeSingle();
 
-      if (userRow == null) {
-        // try case-insensitive exact match
-        userRow = await _supabase
+      userRow ??= await _supabase
             .from('users')
             .select('id, email, role')
             .ilike('user_name', credential)
             .maybeSingle();
-      }
 
-      if (userRow == null) {
-        // try wildcard contains
-        userRow = await _supabase
+      userRow ??= await _supabase
             .from('users')
             .select('id, email, role')
             .ilike('user_name', '%$credential%')
             .maybeSingle();
-      }
 
       if (userRow == null) {
         // No matching user found by username. This could also indicate RLS (row-level security) prevents anonymous reads.

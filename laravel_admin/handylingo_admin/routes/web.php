@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Route;
 
 
 //Admin Login Route 
-Route::get('/', [AdminLoginController::class, 'showLoginForm'])->name('admin.login');
+Route::get('/', [AdminLoginController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [AdminLoginController::class, 'login'])->name('admin.login.submit');
 
 Route::middleware('auth:admin')->group(function () {
@@ -18,6 +18,7 @@ Route::middleware('auth:admin')->group(function () {
     Route::get('/handylingoadmin/logout', [AdminDashboard::class, 'logout'])->name('admin.logout');
     //Manage Users Route
     Route::get('/handylingoadmin/manage-users', [UsersController::class, 'index'])->name('admin.manage.users');
+    Route::delete('/handylingoadmin/manage-users/{id}', [UsersController::class, 'destroy'])->name('admin.manage.users.delete');
     //Manage Feedbacks
     Route::get('/handylingoadmin/manage-feedbacks', [FeedbacksController::class, 'index'])->name('admin.manage.feedbacks');
 });

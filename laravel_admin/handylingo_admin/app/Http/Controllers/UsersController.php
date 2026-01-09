@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Users;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class UsersController extends Controller
 {
@@ -76,6 +78,36 @@ class UsersController extends Controller
      */
     public function destroy(string $id)
     {
-        //
+        $user = Users::findOrFail($id);
+
+        $supabaseUrl = env('SUPABASE_URL');
+        $supabaseServiceKey = env('SUPABASE_SERVICE_ROLE_KEY');
+
+        try {
+            $url = rtrim($supabaseUrl, '/') . '/auth/v1/admin/users/' . $user->id;
+
+            $response = Http::withHeaders([
+                'apikey' => $supabaseServiceKey,
+                'Authorization' => 'Bearer ' . $supabaseServiceKey,
+            ])->delete($url);
+
+            if ($response->successful() || $response->status() == 404) {
+                $user->delete();
+                return redirect()->route('admin.manage.users')->with('Success', 'User deleted successfully.');
+            }
+
+            // If we reach here, it failed. Log everything.
+            Log::error('Supabase Delete Failed', [
+                'status' => $response->status(),
+                'url'    => $url,
+                'error'  => $response->json() ?? $response->body(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Supabase Connection Error', [
+                'message' => $e->getMessage()
+            ]);
+        }
+
+        return redirect()->route('admin.manage.users')->with('error', 'Failed to delete user. Check logs.');
     }
 }
