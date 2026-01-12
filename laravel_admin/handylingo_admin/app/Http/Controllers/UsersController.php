@@ -96,7 +96,6 @@ class UsersController extends Controller
                 return redirect()->route('admin.manage.users')->with('Success', 'User deleted successfully.');
             }
 
-            // If we reach here, it failed. Log everything.
             Log::error('Supabase Delete Failed', [
                 'status' => $response->status(),
                 'url'    => $url,

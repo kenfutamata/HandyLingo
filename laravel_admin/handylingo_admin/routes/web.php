@@ -3,13 +3,15 @@
 use App\Http\Controllers\AdminDashboard;
 use App\Http\Controllers\AdminLoginController;
 use App\Http\Controllers\FeedbacksController;
+use App\Http\Controllers\LandingPageController;
 use App\Http\Controllers\UsersController;
 use App\Http\Middleware\FirebaseMiddleware;
 use Illuminate\Support\Facades\Route;
 
 
 //Admin Login Route 
-Route::get('/', [AdminLoginController::class, 'showLoginForm'])->name('login');
+Route::get('/', [LandingPageController::class, 'index'])->name('admin.landingpage');
+Route::get('/login', [AdminLoginController::class, 'viewLogin'])->name('admin.login');
 Route::post('/login', [AdminLoginController::class, 'login'])->name('admin.login.submit');
 
 Route::middleware('auth:admin')->group(function () {

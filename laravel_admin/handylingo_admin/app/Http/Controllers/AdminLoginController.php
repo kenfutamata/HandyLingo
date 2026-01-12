@@ -13,7 +13,10 @@ class AdminLoginController extends Controller
     protected $auth;
     protected $firestore;
 
-
+    public function viewLogin()
+    {
+        return view('admin.admin_login');
+    }
     public function login(Request $request)
     {
         $request->validate([
