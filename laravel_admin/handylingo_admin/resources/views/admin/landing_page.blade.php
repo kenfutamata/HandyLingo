@@ -33,6 +33,15 @@
 </style>
 
 <body class="bg-white text-gray-800">
+    @if(session('Success'))
+    <div id="notification-bar" class="fixed top-6 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-6 py-3 rounded shadow-lg z-50">
+        {{ session('Success') }}
+    </div>
+    @elseif(session('error'))
+    <div id="notification-bar" class="fixed top-6 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-6 py-3 rounded shadow-lg z-50">
+        {{ session('error') }}
+    </div>
+    @endif
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.3.3/dist/tailwind.min.css" rel="stylesheet">
 
     <header class="bg-blue-300 w-full shadow-sm">
@@ -284,7 +293,7 @@
                     How may we help you?
                 </h2>
 
-                <form class="space-y-8" action="" method="POST">
+                <form class="space-y-8" action="{{route('submit.feedback')}}" method="POST">
                     @csrf
                     <!-- Name Fields -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -294,8 +303,8 @@
                             </label>
                             <input
                                 type="text"
-                                name="firstName"
-                                id="firstName"
+                                name="first_name"
+                                id="last_name"
                                 placeholder="John"
                                 class="w-full p-4 border-2 border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                                 pattern="[A-Za-z\s]+"
@@ -308,8 +317,8 @@
                             </label>
                             <input
                                 type="text"
-                                name="lastName"
-                                id="lastName"
+                                name="last_name"
+                                id="last_name"
                                 placeholder="Doe"
                                 class="w-full p-4 border-2 border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                                 pattern="[A-Za-z\s]+"
@@ -333,18 +342,16 @@
                     <!-- Topic -->
                     <div>
                         <label class="block text-lg font-semibold text-gray-700 mb-2">
-                            Which EQUIJOB topic fits your needs? <span class="text-red-500">*</span>
+                            Which HandyLingo topic fits your needs? <span class="text-red-500">*</span>
                         </label>
                         <select
                             class="w-full p-4 border-2 border-gray-300 rounded-xl text-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                            id="feedbackType"
-                            name="feedbackType"
+                            id="feedback_type"
+                            name="feedback_type"
                             required>
-                            <option disabled selected>Select EQUIJOB Topic</option>
-                            <option>Job Application Issues</option>
-                            <option>AI Job Matching Issues</option>
-                            <option>Resume Builder Problems</option>
-                            <option>Other</option>
+                            <option disabled selected>Select HandyLingo Topic</option>
+                            <option>App Feedback</option>
+                            <option>Issue Report</option>
                         </select>
                     </div>
 
@@ -355,18 +362,11 @@
                         </label>
                         <textarea
                             rows="5"
-                            name="feedbackText"
-                            id="feedbackText"
-                            placeholder="Tell us more about your concern..."
+                            name="message"
+                            id="message"
+                            placeholder="Tell us more about your concern or Feedback."
                             class="w-full p-4 border-2 border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition resize-none"></textarea>
                     </div>
-
-                    <!-- Privacy Notice -->
-                    <p class="text-sm text-gray-500 max-w-3xl">
-                        By submitting this form, you confirm that you have read and agreed to our
-                        <span class="text-blue-600 underline cursor-pointer">Privacy Policy</span>.
-                    </p>
-
                     <!-- Submit Button -->
                     <div class="text-center pt-6">
                         <button
@@ -389,7 +389,7 @@
             <p class="text-sm text-gray-600 leading-relaxed text-center max-w-xl">
                 Copyright &copy; 2026 HandyLingo. All rights reserved.
             </p>
-            <a href="#about-us" class="text-sm-100 hover:text-green-300 transition">Admin Login</a>
+            <a href="{{route('admin.login')}}" class="text-sm-100 hover:text-green-300 transition">Admin Login</a>
 
         </div>
     </footer>
