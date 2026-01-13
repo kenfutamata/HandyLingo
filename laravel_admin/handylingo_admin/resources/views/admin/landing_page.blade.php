@@ -126,7 +126,7 @@
             <h1 class="text-5xl md:text-6xl font-bold">About Us</h1>
 
             <p class="text-lg md:text-xl leading-relaxed">
-                “HandyLingo: a Capstone Project is an AI-Powered Mobile Application that translates sign language into text and vice versa. HandyLingo is better served with persons with hearing barriers which the system 
+                “HandyLingo: a Capstone Project is an AI-Powered Mobile Application that translates sign language into text and vice versa. HandyLingo is better served with persons with hearing barriers which the system
                 is well benefited for them.”
             </p>
 
@@ -264,6 +264,122 @@
             </div>
         </div>
     </section>
+
+    <section id="contact-us" class="bg-slate-50 py-20 px-6">
+        <div class="max-w-6xl mx-auto">
+
+            <!-- Header -->
+            <div class="text-center mb-16">
+                <h1 class="text-5xl md:text-6xl font-bold text-gray-900 mb-4">
+                    Contact Us
+                </h1>
+                <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+                    Have questions or concerns? We’re here to help. Send us a message and we’ll get back to you shortly.
+                </p>
+            </div>
+
+            <!-- Form Card -->
+            <div class="bg-white rounded-3xl shadow-xl p-8 md:p-12">
+                <h2 class="text-3xl font-semibold text-gray-800 mb-8">
+                    How may we help you?
+                </h2>
+
+                <form class="space-y-8" action="" method="POST">
+                    @csrf
+                    <!-- Name Fields -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                            <label class="block text-lg font-semibold text-gray-700 mb-2">
+                                First Name <span class="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                name="firstName"
+                                id="firstName"
+                                placeholder="John"
+                                class="w-full p-4 border-2 border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                                pattern="[A-Za-z\s]+"
+                                required>
+                        </div>
+
+                        <div>
+                            <label class="block text-lg font-semibold text-gray-700 mb-2">
+                                Last Name <span class="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                name="lastName"
+                                id="lastName"
+                                placeholder="Doe"
+                                class="w-full p-4 border-2 border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                                pattern="[A-Za-z\s]+"
+                                required>
+                        </div>
+                    </div>
+
+                    <!-- Email -->
+                    <div>
+                        <label class="block text-lg font-semibold text-gray-700 mb-2">
+                            Email Address <span class="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="email"
+                            id="email"
+                            name="email"
+                            placeholder="you@example.com"
+                            class="w-full p-4 border-2 border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                            required>
+                    </div>
+                    <!-- Topic -->
+                    <div>
+                        <label class="block text-lg font-semibold text-gray-700 mb-2">
+                            Which EQUIJOB topic fits your needs? <span class="text-red-500">*</span>
+                        </label>
+                        <select
+                            class="w-full p-4 border-2 border-gray-300 rounded-xl text-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                            id="feedbackType"
+                            name="feedbackType"
+                            required>
+                            <option disabled selected>Select EQUIJOB Topic</option>
+                            <option>Job Application Issues</option>
+                            <option>AI Job Matching Issues</option>
+                            <option>Resume Builder Problems</option>
+                            <option>Other</option>
+                        </select>
+                    </div>
+
+                    <!-- Message -->
+                    <div>
+                        <label class="block text-lg font-semibold text-gray-700 mb-2">
+                            Message
+                        </label>
+                        <textarea
+                            rows="5"
+                            name="feedbackText"
+                            id="feedbackText"
+                            placeholder="Tell us more about your concern..."
+                            class="w-full p-4 border-2 border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition resize-none"></textarea>
+                    </div>
+
+                    <!-- Privacy Notice -->
+                    <p class="text-sm text-gray-500 max-w-3xl">
+                        By submitting this form, you confirm that you have read and agreed to our
+                        <span class="text-blue-600 underline cursor-pointer">Privacy Policy</span>.
+                    </p>
+
+                    <!-- Submit Button -->
+                    <div class="text-center pt-6">
+                        <button
+                            type="submit"
+                            class="bg-blue-600 hover:bg-blue-700 text-white px-14 py-4 text-xl font-bold rounded-2xl shadow-lg transition transform hover:-translate-y-1 focus:outline-none focus:ring-4 focus:ring-blue-300">
+                            Submit Message
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </section>
+
     <footer id="footer" class="bg-blue-400 pt-16 pb-8 px-6 lg:px-16 text-gray-700 flex justify-center items-center">
         <div class="container mx-auto flex flex-col justify-center items-center">
             <img src="{{ asset('assets/admin/handylingologo.png') }}" alt="HandyLingo Logo" class="mx-auto w-32 h-auto mb-4">
