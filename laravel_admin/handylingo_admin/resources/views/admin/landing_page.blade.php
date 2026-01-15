@@ -9,28 +9,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" cross origin>
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.3.3/dist/tailwind.min.css" rel="stylesheet">
-    <!-- <script src="{{ asset('assets/landing_page/js/landing_page/landing_page.js') }}"></script> -->
+    <link rel="stylesheet" href="{{ asset('assets/landing_page/css/landing_page.css') }}">
     <script src="https://cdn.tailwindcss.com"></script>
 
     <link rel="icon" type="image/x-icon" href="{{asset('assets/admin/handylingologo.png')}}">
 </head>
-<style>
-    @keyframes float {
-
-        0%,
-        100% {
-            transform: translateY(0);
-        }
-
-        50% {
-            transform: translateY(-10px);
-        }
-    }
-
-    .animate-float {
-        animation: float 4s ease-in-out infinite;
-    }
-</style>
 
 <body class="bg-white text-gray-800">
     @if(session('Success'))
@@ -55,7 +38,7 @@
                 <a href="#about-us" class="text-gray-100 hover:text-green-300 transition">About Us</a>
                 <a href="#features" class="text-gray-100 hover:text-green-300 transition">Features</a>
                 <a href="#our-team" class="text-gray-100 hover:text-green-300 transition">Our Team</a>
-                <a class="text-gray-100 hover:text-green-300 transition">Contact Us</a>
+                <a href="#contact-us" class="text-gray-100 hover:text-green-300 transition">Contact Us</a>
             </nav>
             <!--  Menu Button -->
             <div class="md:hidden">
@@ -69,21 +52,13 @@
             </div>
 
             <div id="mobile-menu" class="absolute top-full right-4 mt-2 w-48 bg-white rounded-lg shadow-lg border hidden md:hidden z-50">
-                <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-100">About Us</a>
-                <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-100">Contact Us</a>
+                <a href="#about-us" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-100">About Us</a>
+                <a href="#features" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-100">Features</a>
+                <a href="#our-team" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-100">Our Team</a>
+                <a href="#contact-us" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-100">Contact Us</a>
             </div>
         </div>
     </header>
-    <div id="mobile-menu" class="hidden lg:hidden px-6 pb-4">
-        <a href="#hero" class="block text-gray-600 hover:text-blue-600 py-2">Home</a>
-        <a href="#why-us" class="block text-gray-600 hover:text-blue-600 py-2">Why Us</a>
-        <a href="#partners" class="block text-gray-600 hover:text-blue-600 py-2">Partners</a>
-        <a href="#resources" class="block text-gray-600 hover:text-blue-600 py-2">Resources</a>
-        <a href="#reviews" class="block text-gray-600 hover:text-blue-600 py-2">Reviews</a>
-        <a href="#faq" class="block text-gray-600 hover:text-blue-600 py-2">FAQ</a>
-        <a href="#footer" class="block text-gray-600 hover:text-blue-600 py-2">Contact</a>
-        <a href="#" class="block bg-blue-600 text-white text-center mt-2 px-4 py-2 rounded hover:bg-blue-700 transition duration-300">Register Now</a>
-    </div>
     </nav>
 
     <!-- Hero Section -->
@@ -396,18 +371,7 @@
 
 </body>
 
-<script>
-    const menuBtn = document.getElementById('mobile-menu-button');
-    const mobileMenu = document.getElementById('mobile-menu');
 
-    menuBtn.addEventListener('click', () => {
-        mobileMenu.classList.toggle('hidden');
-    });
-
-    function toggleMenu() {
-        const menu = document.getElementById('mobile-menu');
-        menu.classList.toggle('hidden');
-    }
-</script>
+<script src="{{ asset('assets/landing_page/js/landing_page.js') }}"></script>
 
 </html>
