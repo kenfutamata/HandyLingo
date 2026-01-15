@@ -241,6 +241,14 @@
         function closeUserModal() {
             document.getElementById('viewProfileModal').classList.add('hidden');
         }
+        setTimeout(() => {
+            const notif = document.getElementById('notification-bar');
+            if (notif) notif.style.opacity = '0';
+        }, 2500);
+        setTimeout(() => {
+            const notif = document.getElementById('notification-bar');
+            if (notif) notif.style.display = 'none';
+        }, 3000);
     </script>
 </body>
 
