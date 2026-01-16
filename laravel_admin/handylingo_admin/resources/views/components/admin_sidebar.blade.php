@@ -29,7 +29,6 @@
             <i data-lucide="message-square" class="mr-3 w-5 h-5"></i>
             <span class="font-medium">Feedback</span>
         </a>
-
         <button onclick="showSection('reports')" id="nav-reports" class="sidebar-item w-full flex items-center p-3 rounded-lg transition-all hover:text-white hover:bg-slate-800">
             <i data-lucide="bar-chart-3" class="mr-3 w-5 h-5"></i>
             <span class="font-medium">Reports</span>
