@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Feedbacks;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -10,10 +11,23 @@ class FeedbacksController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         $user = Auth::guard('admin')->user();
-        return view('admin.admin_feedbacks', compact('user'));
+        $search = $request->input('search'); 
+        $query = Feedbacks::query()->where('status', 'New');
+        if($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('first_name', 'like', "%{$search}%")
+                  ->orWhere('last_name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('feedback_type', 'like', "%{$search}%")
+                  ->orWhere('message', 'like', "%{$search}%")
+                  ->orWhere('status', 'like', "%{$search}%");
+            });
+        }
+        $feedbacks = $query->paginate(10)->withQueryString();
+        return view('admin.admin_feedbacks', compact('user', 'feedbacks'));
     }
 
     /**

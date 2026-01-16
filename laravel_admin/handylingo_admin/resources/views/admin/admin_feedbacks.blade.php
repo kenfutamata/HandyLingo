@@ -87,13 +87,14 @@
                                 </tr>
                             </thead>
                             <tbody id="user-table-body" class="divide-y divide-slate-100 text-sm">
+                                @foreach($feedbacks as $feedback)
                                 <tr class="hover:bg-slate-50 transition group">
-                                    <td class="p-5 text-slate-400">1</td>
-                                    <td class="p-5 font-semibold text-slate-700">Juan</td>
-                                    <td class="p-5 text-slate-600">Tamad</td>
-                                    <td class="p-5 text-slate-600">juantamad@gmail.com</td>
-                                    <td class="p-5 text-slate-600">App Feedback</td>
-                                    <td class="p-5 text-slate-600">New</td>
+                                    <td class="p-5 text-slate-400">{{$feedbacks->firstItem() + $loop->index}}</td>
+                                    <td class="p-5 font-semibold text-slate-700">{{$feedback->first_name}}</td>
+                                    <td class="p-5 text-slate-600">{{$feedback->last_name}}</td>
+                                    <td class="p-5 text-slate-600">{{$feedback->email}}</td>
+                                    <td class="p-5 text-slate-600">{{$feedback->feedback_type}}</td>
+                                    <td class="p-5 text-slate-600">{{$feedback->status}}</td>
                                     <td class="p-5">
                                         <div class="flex justify-center gap-2 ">
                                             <button class="p-2 rounded-lg text-slate-400 hover:text-green-600">
@@ -110,8 +111,14 @@
                                     </td>
                                 </tr>
                             </tbody>
+                            @endforeach
                         </table>
                     </div>
+                    @if($feedbacks->hasPages())
+                    <div class="p-5 border-t border-slate-100">
+                        {{ $feedbacks->links() }}
+                    </div>
+                    @endif
                 </section>
             </div>
         </main>
