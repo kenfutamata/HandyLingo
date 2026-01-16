@@ -12,7 +12,6 @@ class Feedbacks extends Model
     protected $table = 'feedbacks';
     public $incrementing = false;
 
-    protected $keyType = 'string';
     
     protected $fillable = [
         'user_id',
