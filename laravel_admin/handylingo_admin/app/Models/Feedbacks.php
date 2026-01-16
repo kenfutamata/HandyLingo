@@ -10,6 +10,8 @@ class Feedbacks extends Model
 {
     use HasFactory, HasUuids; 
     protected $table = 'feedbacks';
+    protected $keyType = 'string';
+    public $incrementing = false;
 
     public $incrementing = false;
     protected $keyType = 'string';

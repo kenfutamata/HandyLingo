@@ -27,4 +27,6 @@ Route::middleware('auth:admin')->group(function () {
     Route::delete('/handylingoadmin/manage-users/{id}', [UsersController::class, 'destroy'])->name('admin.manage.users.delete');
     //Manage Feedbacks
     Route::get('/handylingoadmin/manage-feedbacks', [FeedbacksController::class, 'index'])->name('admin.manage.feedbacks');
+    Route::delete('/handylingoadmin/manage-feedbacks/{id}', [FeedbacksController::class, 'destroy'])->name('admin.manage.feedbacks.delete');
+    Route::put('/handylingoadmin/manage-feedbacks/{id}', [FeedbacksController::class, 'update'])->name('admin.manage.feedbacks.update');
 });
