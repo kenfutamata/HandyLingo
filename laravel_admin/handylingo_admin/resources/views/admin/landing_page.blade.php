@@ -323,13 +323,37 @@
                             class="w-full p-4 border-2 border-gray-300 rounded-xl text-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                             id="feedback_type"
                             name="feedback_type"
+                        onchange="openStarsSection()"
                             required>
                             <option disabled selected>Select HandyLingo Topic</option>
                             <option>App Feedback</option>
                             <option>Issue Report</option>
                         </select>
                     </div>
+                    <!-- If App Feedback -->
+                    <div id="stars_section" class="hidden">
+                        <label class="block text-lg font-semibold text-gray-700 mb-3">
+                            App Feedback
+                        </label>
 
+                        <div class="flex flex-row-reverse justify-end gap-1">
+                            <!-- 5 Stars -->
+                            <input type="radio" name="rating" id="star5" value="5" class="hidden peer">
+                            <label for="star5" class="cursor-pointer text-4xl text-gray-300 peer-checked:text-yellow-400 hover:text-yellow-400">★</label>
+
+                            <input type="radio" name="rating" id="star4" value="4" class="hidden peer">
+                            <label for="star4" class="cursor-pointer text-4xl text-gray-300 peer-checked:text-yellow-400 hover:text-yellow-400">★</label>
+
+                            <input type="radio" name="rating" id="star3" value="3" class="hidden peer">
+                            <label for="star3" class="cursor-pointer text-4xl text-gray-300 peer-checked:text-yellow-400 hover:text-yellow-400">★</label>
+
+                            <input type="radio" name="rating" id="star2" value="2" class="hidden peer">
+                            <label for="star2" class="cursor-pointer text-4xl text-gray-300 peer-checked:text-yellow-400 hover:text-yellow-400">★</label>
+
+                            <input type="radio" name="rating" id="star1" value="1" class="hidden peer">
+                            <label for="star1" class="cursor-pointer text-4xl text-gray-300 peer-checked:text-yellow-400 hover:text-yellow-400">★</label>
+                        </div>
+                    </div>
                     <!-- Message -->
                     <div>
                         <label class="block text-lg font-semibold text-gray-700 mb-2">

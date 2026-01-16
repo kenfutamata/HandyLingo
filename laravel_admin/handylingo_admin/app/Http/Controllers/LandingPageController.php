@@ -42,6 +42,7 @@ class LandingPageController extends Controller
             'email' => 'required|email|max:255',
             'feedback_type' => 'required|in:App Feedback,Issue Report',
             'message' => 'required|string',
+            'rating'=> 'nullable|integer|min:1|max:5',
         ]);
 
         $validateInformation['status'] = 'New'; 
