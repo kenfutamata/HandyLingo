@@ -1,0 +1,4 @@
+{
+  // Force integrated terminal to open in the actual Flutter app folder
+  "terminal.integrated.cwd": "C:\\Users\\Chaos\\Videos\\Handylingo\\HandyLingo\\HandyLingoMobile\\handylingo"
+}
