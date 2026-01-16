@@ -15,7 +15,7 @@ class FeedbacksController extends Controller
     {
         $user = Auth::guard('admin')->user();
         $search = $request->input('search'); 
-        $query = Feedbacks::query()->where('status', 'New');
+        $query = Feedbacks::query()->whereIn('status', ['New', 'Completed']);
         if($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('first_name', 'like', "%{$search}%")
@@ -65,9 +65,12 @@ class FeedbacksController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(string $id)
     {
-        //
+        $user = Feedbacks::findOrFail($id);
+        $user->status = 'Completed';
+        $user->save();
+        return redirect()->back()->with('Success', 'Feedback marked as completed.');
     }
 
     /**
@@ -75,6 +78,8 @@ class FeedbacksController extends Controller
      */
     public function destroy(string $id)
     {
-        //
+        $user = Feedbacks::findOrFail($id);
+        $user->delete();
+        return redirect()->back()->with('Success', 'Feedback deleted successfully.');
     }
 }
