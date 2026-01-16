@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class FaqPage extends StatelessWidget {
-  const FaqPage({Key? key}) : super(key: key);
+  const FaqPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +42,7 @@ class FaqPage extends StatelessWidget {
 }
 
 class FeedbackPage extends StatelessWidget {
-  const FeedbackPage({Key? key}) : super(key: key);
+  const FeedbackPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +54,7 @@ class FeedbackPage extends StatelessWidget {
 }
 
 class TermsPage extends StatelessWidget {
-  const TermsPage({Key? key}) : super(key: key);
+  const TermsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +66,7 @@ class TermsPage extends StatelessWidget {
 }
 
 class AppVersionEditPage extends StatelessWidget {
-  const AppVersionEditPage({Key? key}) : super(key: key);
+  const AppVersionEditPage({super.key});
 
   @override
   Widget build(BuildContext context) {

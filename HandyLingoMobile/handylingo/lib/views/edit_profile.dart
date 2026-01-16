@@ -6,7 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class EditProfilePage extends StatefulWidget {
   final Map<String, dynamic>? userRow;
-  const EditProfilePage({Key? key, required this.userRow}) : super(key: key);
+  const EditProfilePage({super.key, required this.userRow});
 
   @override
   State<EditProfilePage> createState() => _EditProfilePageState();
@@ -57,7 +57,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
             _lastCtrl.text = row['last_name'] ?? '';
             _userCtrl.text = row['user_name'] ?? '';
             _emailCtrl.text = row['email'] ?? '';
-            widget.userRow?..addAll(row);
+            widget.userRow?.addAll(row);
           });
         }
       }

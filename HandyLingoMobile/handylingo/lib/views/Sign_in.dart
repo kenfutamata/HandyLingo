@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../controller/AuthController.dart';
 import 'Sign_up.dart';
 import 'welcome_dashboard.dart';
-import 'admin_dashboard.dart';
 
 class Sign_in extends ConsumerStatefulWidget {
   const Sign_in({super.key});
@@ -43,11 +42,7 @@ class _SignInState extends ConsumerState<Sign_in> {
 
       // Navigate based on role
       final role = info['role'] ?? 'user';
-      if (role == 'admin') {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const AdminDashboard()),
-        );
-      } else {
+      if (role == 'user') {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const WelcomeDashboard()),
         );

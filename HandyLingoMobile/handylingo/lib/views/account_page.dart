@@ -189,23 +189,6 @@ class _AccountPageState extends State<AccountPage> {
             color: Colors.black87,
           ),
         ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(
-              _soundOn ? Icons.volume_up : Icons.volume_off,
-              color: Colors.black87,
-            ),
-            onPressed: () => setState(() => _soundOn = !_soundOn),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: Image.asset(
-              'assets/images/downloadremovebgpreview_2.png',
-              width: 22,
-            ),
-          ),
-        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -670,14 +653,7 @@ class _AccountPageState extends State<AccountPage> {
                 ],
               ),
             ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const StartUsingPage())),
-        backgroundColor: Colors.white,
-        child: const Icon(Icons.circle, color: Colors.black, size: 36),
-      ),
+
       bottomNavigationBar: BottomAppBar(
         color: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
