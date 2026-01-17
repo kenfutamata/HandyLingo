@@ -14,20 +14,22 @@ class FeedbacksController extends Controller
     public function index(Request $request)
     {
         $user = Auth::guard('admin')->user();
-        $search = $request->input('search'); 
+        $search = $request->input('search');
         $query = Feedbacks::query()->whereIn('status', ['New', 'Completed']);
-        if($search) {
+        $notifications = $user->notifications ?? collect();
+        $unreadNotifications = $user->unreadNotifications ?? collect();
+        if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('first_name', 'like', "%{$search}%")
-                  ->orWhere('last_name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('feedback_type', 'like', "%{$search}%")
-                  ->orWhere('message', 'like', "%{$search}%")
-                  ->orWhere('status', 'like', "%{$search}%");
+                    ->orWhere('last_name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('feedback_type', 'like', "%{$search}%")
+                    ->orWhere('message', 'like', "%{$search}%")
+                    ->orWhere('status', 'like', "%{$search}%");
             });
         }
         $feedbacks = $query->paginate(10)->withQueryString();
-        return view('admin.admin_feedbacks', compact('user', 'feedbacks'));
+        return view('admin.admin_feedbacks', compact('user', 'feedbacks', 'notifications', 'unreadNotifications'));
     }
 
     /**

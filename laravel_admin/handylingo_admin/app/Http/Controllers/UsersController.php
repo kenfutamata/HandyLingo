@@ -18,6 +18,8 @@ class UsersController extends Controller
         $user = Auth::guard('admin')->user();
         $search = $request->input('search');
         $query = Users::query()->where('role', 'user');
+        $notifications = $user->notifications ?? collect();
+        $unreadNotifications = $user->unreadNotifications ?? collect();
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->whereRaw('LOWER(first_name || \' \' || last_name) LIKE ?', [$search])
@@ -30,7 +32,7 @@ class UsersController extends Controller
         }
         $users = $query->paginate(10)->withQueryString();
 
-        return view('admin.admin_manage_users', compact('user', 'users'));
+        return view('admin.admin_manage_users', compact('user', 'users', 'notifications', 'unreadNotifications'));
     }
 
     /**

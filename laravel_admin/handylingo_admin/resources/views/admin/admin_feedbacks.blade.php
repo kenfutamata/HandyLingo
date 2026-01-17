@@ -45,7 +45,7 @@
 <body class="bg-[#F8FAFC] font-sans text-slate-900 overflow-hidden flex flex-col h-screen">
 
     <div class="flex-none">
-        <x-admin_topbar :user="$user" />
+        <x-admin_topbar :user="$user" :notifications="$notifications" :unreadNotifications="$unreadNotifications" />
     </div>
 
     <div class="flex flex-1 overflow-hidden">

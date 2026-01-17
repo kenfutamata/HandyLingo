@@ -23,11 +23,6 @@
                 x-transition:enter-end="opacity-100 scale-100 translate-y-0"
                 class="absolute right-0 mt-3 w-80 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
 
-                <div class="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-slate-50/50">
-                    <span class="font-bold text-gray-800">Notifications</span>
-                    <span class="text-[10px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-bold">{{ $unreadNotifications->count() }} NEW</span>
-                </div>
-
                 <div class="max-h-[350px] overflow-y-auto">
                     @forelse($notifications as $notification)
                     <!-- Added 'relative' here -->
