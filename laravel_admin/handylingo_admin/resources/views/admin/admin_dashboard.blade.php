@@ -46,7 +46,7 @@
 <body class="bg-[#F8FAFC] font-sans text-slate-900 overflow-hidden flex flex-col h-screen">
 
     <div class="flex-none">
-        <x-admin_topbar :user="$user" />
+        <x-admin_topbar :user="$user" :notifications="$notifications" :unreadNotifications="$unreadNotifications" />
     </div>
 
     <div class="flex flex-1 overflow-hidden">
@@ -54,6 +54,15 @@
         <x-admin_sidebar />
 
         <main class="flex-1 overflow-y-auto p-4 md:p-8 pb-24">
+            @if(session('Success'))
+            <div id="notification-bar" class="fixed top-6 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-6 py-3 rounded shadow-lg z-50">
+                {{ session('Success') }}
+            </div>
+            @elseif(session('error'))
+            <div id="notification-bar" class="fixed top-6 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-6 py-3 rounded shadow-lg z-50">
+                {{ session('error') }}
+            </div>
+            @endif
             <div class="max-w-7xl mx-auto">
 
                 <!-- SECTION: DASHBOARD -->
