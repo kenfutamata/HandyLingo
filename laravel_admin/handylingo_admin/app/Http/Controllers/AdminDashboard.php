@@ -13,7 +13,9 @@ class AdminDashboard extends Controller
         $user = Auth::guard('admin')->user();
         $feedbackCount = Feedbacks::where('status', 'New')->count();
         $userCount = Users::where('role', 'user')->where('status', 'active')->count(); 
-        return view('admin.admin_dashboard', compact('user', 'userCount', 'feedbackCount')); 
+        $notifications = $user->notifications ?? collect(); 
+        $unreadNotifications = $user->unreadNotifications ?? collect(); 
+        return view('admin.admin_dashboard', compact('user', 'userCount', 'feedbackCount', 'notifications', 'unreadNotifications')); 
     }
 
     public function logout(Request $request){

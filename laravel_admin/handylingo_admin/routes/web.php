@@ -4,6 +4,7 @@ use App\Http\Controllers\AdminDashboard;
 use App\Http\Controllers\AdminLoginController;
 use App\Http\Controllers\FeedbacksController;
 use App\Http\Controllers\LandingPageController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\UsersController;
 use App\Http\Middleware\FirebaseMiddleware;
 use Illuminate\Support\Facades\Route;
@@ -29,4 +30,6 @@ Route::middleware('auth:admin')->group(function () {
     Route::get('/handylingoadmin/manage-feedbacks', [FeedbacksController::class, 'index'])->name('admin.manage.feedbacks');
     Route::delete('/handylingoadmin/manage-feedbacks/{id}', [FeedbacksController::class, 'destroy'])->name('admin.manage.feedbacks.delete');
     Route::put('/handylingoadmin/manage-feedbacks/{id}', [FeedbacksController::class, 'update'])->name('admin.manage.feedbacks.update');
+    //Notifications 
+    Route::delete('/handylingoadmin/notifications/{id}', [NotificationController::class, 'destroy'])->name('admin.notifications.destroy');
 });
