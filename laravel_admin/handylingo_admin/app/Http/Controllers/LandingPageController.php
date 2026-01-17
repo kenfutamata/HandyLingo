@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Feedbacks;
+use App\Models\Users;
+use App\Notifications\NotifyFeedbackDetail;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 
 class LandingPageController extends Controller
 {
@@ -49,6 +52,8 @@ class LandingPageController extends Controller
 
         try{
             Feedbacks::create($validateInformation);
+            $user = Users::all(); 
+            Notification::send($user, new NotifyFeedbackDetail());
             return back()->with('Success', 'Thank you for your feedback! We appreciate your input.');
         }catch(Exception $e){
             Log::error('Error storing feedback: ' . $e->getMessage());
