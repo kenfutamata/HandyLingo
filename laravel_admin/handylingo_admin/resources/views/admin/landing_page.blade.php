@@ -388,7 +388,7 @@
             <p class="text-sm text-gray-600 leading-relaxed text-center max-w-xl">
                 Copyright &copy; 2026 HandyLingo. All rights reserved.
             </p>
-            <a href="{{route('admin.login')}}" class="text-sm-100 hover:text-green-300 transition">Admin Login</a>
+            <a href="{{route('login')}}" class="text-sm-100 hover:text-green-300 transition">Admin Login</a>
 
         </div>
     </footer>

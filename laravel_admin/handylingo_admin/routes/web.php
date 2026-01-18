@@ -15,7 +15,7 @@ Route::get('/', [LandingPageController::class, 'index'])->name('admin.landingpag
 //Contact us route
 Route::post('/submit-feedback', [LandingPageController::class, 'storeFeedback'])->name('submit.feedback');
 //Admin Login Route 
-Route::get('/login', [AdminLoginController::class, 'viewLogin'])->name('admin.login');
+Route::get('/login', [AdminLoginController::class, 'viewLogin'])->name('login');
 Route::post('/login', [AdminLoginController::class, 'login'])->name('admin.login.submit');
 
 
