@@ -107,7 +107,7 @@
                             <thead class="bg-slate-50">
                                 <tr class="border-b border-slate-200 text-slate-500 text-xs uppercase font-bold">
                                     <th class="p-5">#</th>
-                                    <th class="p-5">First Name</th>
+                                    <th class="p-5">Username</th>
                                     <th class="p-5">First Name</th>
                                     <th class="p-5">Last Name</th>
                                     <th class="p-5">Email</th>
