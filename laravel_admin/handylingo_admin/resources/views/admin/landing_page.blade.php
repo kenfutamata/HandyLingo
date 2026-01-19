@@ -30,7 +30,7 @@
     <header class="bg-blue-300 w-full shadow-sm">
         <div class="max-w-screen-xl mx-auto flex items-center justify-between px-4 sm:px-8 py-3 relative">
             <a href="{{ route('admin.landingpage') }}" class="flex items-center gap-2 no-underline">
-                <img src="{{ asset('assets/admin/handylingologo.png') }}" alt="EquiJob Logo" class="w-12 h-12 object-contain" />
+                <img src="{{ asset('assets/admin/handylingologo.png') }}" alt="HandyLingo Logo" class="w-12 h-12 object-contain" />
                 <span class="text-sm font-semibold text-[#0b3c5d]">HandyLingo</span>
             </a>
 

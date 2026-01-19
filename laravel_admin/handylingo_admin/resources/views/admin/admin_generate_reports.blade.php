@@ -14,12 +14,21 @@
     <link rel="icon" type="image/x-icon" href="{{ asset('assets/admin/handylingologo.png') }}">
 
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
         [x-cloak] {
             display: none !important;
         }
 
         body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #F8FAFC;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
         }
 
         ::-webkit-scrollbar {
@@ -34,10 +43,37 @@
             background: #cbd5e1;
             border-radius: 10px;
         }
+
+        [x-cloak] {
+            display: none !important;
+        }
+
+        .sidebar-item.active {
+            color: #60a5fa !important;
+            border-right: 4px solid #60a5fa;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .hidden-section {
+            display: none;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 10px;
+        }
     </style>
 </head>
 
-<body class="bg-[#F8FAFC] text-slate-900 flex flex-col h-screen overflow-hidden">
+<body class="text-slate-900 flex flex-col h-screen overflow-hidden">
 
     <!-- Topbar -->
     <div class="flex-none z-50">
@@ -49,108 +85,97 @@
         <x-admin_sidebar />
 
         <!-- Main Content Area -->
-        <main class="flex-1 overflow-y-auto p-6 md:p-10 pb-24">
+        <main class="flex-1 overflow-y-auto p-6 md:p-8 lg:p-10 pb-24">
 
             <!-- Notifications -->
             @foreach (['Success' => 'emerald', 'error' => 'rose'] as $key => $color)
             @if (session($key))
-            <div id="notification-bar" class="fixed top-20 left-1/2 transform -translate-x-1/2 bg-{{ $color }}-500 text-white px-6 py-3 rounded-xl shadow-2xl z-[60] transition-all duration-500">
-                {{ session($key) }}
+            <div id="notification-bar" class="fixed top-24 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-2xl shadow-2xl z-[70] flex items-center gap-3 transition-all duration-500 border border-slate-700">
+                <div class="w-2 h-2 rounded-full bg-{{ $color }}-400 animate-pulse"></div>
+                <span class="text-sm font-bold">{{ session($key) }}</span>
             </div>
             @endif
             @endforeach
 
-            <div class="max-w-6xl mx-auto">
+            <div class="max-w-7xl mx-auto space-y-8">
 
-                <!-- Page Header & Filters Row -->
-                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6">
-                    <div>
-                        <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">System Performance Report</h1>
-                        <p class="text-slate-500 mt-1 flex items-center gap-2">
-                            <i data-lucide="calendar" class="w-4 h-4"></i>
-                            Analytics for {{ \Carbon\Carbon::parse($selectedMonth)->format('F Y') }}
-                        </p>
+                <!-- Header Section -->
+                <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                    <div class="space-y-2">
+                        <div class="flex items-center gap-2 text-indigo-600 font-bold text-xs uppercase tracking-widest">
+                            <i data-lucide="pie-chart" class="w-4 h-4"></i>
+                            System Analytics
+                        </div>
+                        <h1 class="text-4xl font-extrabold text-slate-900 tracking-tight">Reports Data</h1>
+                        <p class="text-slate-500 font-medium">Viewing performance data for <span class="text-slate-900 font-bold">{{ \Carbon\Carbon::parse($selectedMonth)->format('F Y') }}</span></p>
                     </div>
 
-                    <div class="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
-                        <!-- Month Filter Form -->
-                        <form method="GET" action="{{ url()->current() }}" class="flex items-center gap-3 bg-white border border-slate-200 p-2 rounded-xl shadow-sm w-full sm:w-auto">
-                            <label for="month" class="pl-3 text-xs font-bold uppercase text-slate-400">Period</label>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <form method="GET" action="{{ url()->current() }}" class="flex items-center bg-white border border-slate-200 p-1.5 rounded-2xl shadow-sm hover:border-indigo-300 transition-colors">
+                            <label for="month" class="px-3 text-[10px] font-black uppercase text-slate-400 border-r border-slate-100">Period</label>
                             <input type="month" id="month" name="month" value="{{ $selectedMonth }}" onchange="this.form.submit()"
-                                class="border-0 bg-transparent text-sm font-semibold focus:ring-0 cursor-pointer">
+                                class="border-0 bg-transparent text-sm font-bold focus:ring-0 cursor-pointer text-slate-700 px-3">
                         </form>
 
-                        <a href="#" class="flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg w-full sm:w-auto">
-                            <i data-lucide="download" class="w-4 h-4"></i>
+                        <button onclick="window.print()" class="flex items-center justify-center gap-2 bg-slate-900 hover:bg-indigo-600 text-white px-6 py-3 rounded-2xl text-sm font-bold transition-all shadow-lg active:scale-95">
+                            <i data-lucide="file-down" class="w-4 h-4"></i>
                             Export PDF
-                        </a>
+                        </button>
                     </div>
                 </div>
 
-                <!-- Report Sections -->
-                @if($ratingsChartData)
-                <div class="grid grid-cols-1 gap-8">
-
-                    <!-- Feedback Ratings Card -->
-                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
-                        <div class="flex items-center justify-between mb-8">
-                            <div>
-                                <h2 class="text-xl font-bold text-slate-800">Application Feedback</h2>
-                                <p class="text-sm text-slate-500">Aggregated feedback from both Landing Page and Mobile App</p>
+                <!-- Metrics Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div class="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group">
+                        <div class="flex justify-between items-start">
+                            <div class="p-4 bg-blue-50 text-blue-600 rounded-2xl group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300">
+                                <i data-lucide="users" class="w-6 h-6"></i>
                             </div>
-                            <div class="p-3 bg-blue-50 text-blue-600 rounded-xl">
-                                <i data-lucide="bar-chart-3" class="w-6 h-6"></i>
+                            <div class="text-right">
+                                <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Total Users</p>
+                                <h3 class="text-3xl font-black text-slate-900 mt-1">{{ number_format($userCount) }}</h3>
                             </div>
                         </div>
+                    </div>
 
-                        <div class="relative h-[400px] w-full">
+                    <div class="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group">
+                        <div class="flex justify-between items-start">
+                            <div class="p-4 bg-amber-50 text-amber-600 rounded-2xl group-hover:bg-amber-500 group-hover:text-white transition-colors duration-300">
+                                <i data-lucide="message-square" class="w-6 h-6"></i>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Feedback</p>
+                                <h3 class="text-3xl font-black text-slate-900 mt-1">{{ number_format($feedbackCount) }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                @if($ratingsChartData || $usersChartData)
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    @if($ratingsChartData)
+                    <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 p-8">
+                        <h2 class="text-xl font-extrabold text-slate-900 mb-8">User Satisfaction</h2>
+                        <div class="chart-container">
                             <canvas id="ratingsChart"></canvas>
                         </div>
                     </div>
+                    @endif
 
-                    <!-- You can add more summary cards here if needed (e.g. Total Users) -->
-                </div>
-                @else
-                <!-- Empty State -->
-                <div class="bg-white border border-dashed border-slate-300 rounded-3xl p-20 text-center max-w-2xl mx-auto mt-10">
-                    <div class="bg-slate-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <i data-lucide="database-zap" class="w-10 h-10 text-slate-300"></i>
-                    </div>
-                    <h3 class="text-2xl font-bold text-slate-800">No Analytics Found</h3>
-                    <p class="text-slate-500 mt-2">There is no feedback data recorded for the selected month. Please try selecting a different period.</p>
-                </div>
-                @endif
-                <!--Users Count-->
-                @if($usersChartData)
-                <div class="grid grid-cols-1 gap-8">
-
-                    <!-- Users Card -->
-                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
-                        <div class="flex items-center justify-between mb-8">
-                            <div>
-                                <h2 class="text-xl font-bold text-slate-800">User Count</h2>
-                                <p class="text-sm text-slate-500">Number of Users registered</p>
-                            </div>
-                            <div class="p-3 bg-blue-50 text-blue-600 rounded-xl">
-                                <i data-lucide="bar-chart-3" class="w-6 h-6"></i>
-                            </div>
-                        </div>
-
-                        <div class="relative h-[400px] w-full">
+                    @if($usersChartData)
+                    <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 p-8">
+                        <h2 class="text-xl font-extrabold text-slate-900 mb-8">Growth Trend</h2>
+                        <div class="chart-container">
                             <canvas id="usersChart"></canvas>
                         </div>
                     </div>
-
-                    <!-- You can add more summary cards here if needed (e.g. Total Users) -->
+                    @endif
                 </div>
                 @else
-                <!-- Empty State -->
-                <div class="bg-white border border-dashed border-slate-300 rounded-3xl p-20 text-center max-w-2xl mx-auto mt-10">
-                    <div class="bg-slate-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <i data-lucide="database-zap" class="w-10 h-10 text-slate-300"></i>
-                    </div>
-                    <h3 class="text-2xl font-bold text-slate-800">No Analytics Found</h3>
-                    <p class="text-slate-500 mt-2">There is no feedback data recorded for the selected month. Please try selecting a different period.</p>
+                <div class="bg-white border-2 border-dashed border-slate-200 rounded-[3rem] p-20 text-center max-w-2xl mx-auto">
+                    <i data-lucide="bar-chart-2" class="w-12 h-12 text-slate-300 mx-auto mb-6"></i>
+                    <h3 class="text-2xl font-black text-slate-800">No Data Found</h3>
                 </div>
                 @endif
             </div>
@@ -159,33 +184,21 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // Initialize Lucide Icons
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons();
-            }
+            if (typeof lucide !== 'undefined') lucide.createIcons();
 
-            // Notification handling
-            const notifBar = document.getElementById('notification-bar');
-            if (notifBar) {
-                setTimeout(() => {
-                    notifBar.style.opacity = '0';
-                    setTimeout(() => notifBar.remove(), 500);
-                }, 3000);
-            }
-
-            // 1. Application Feedback Chart
+            // Corrected JSON Access logic
             @if($ratingsChartData)
-            const feedbackData = @json($ratingsChartData);
-            new Chart(document.getElementById('ratingsChart').getContext('2d'), {
+            const ctxR = document.getElementById('ratingsChart').getContext('2d');
+            new Chart(ctxR, {
                 type: 'bar',
                 data: {
-                    labels: feedbackData.labels.map(l => `★ ${l}`),
+                    // Use array syntax ['labels'] instead of dot notation
+                    labels: @json($ratingsChartData['labels']).map(l => `★ ${l}`),
                     datasets: [{
-                        label: 'Rating Count',
-                        data: feedbackData.values,
-                        backgroundColor: '#3b82f6',
+                        data: @json($ratingsChartData['values']),
+                        backgroundColor: '#6366f1',
                         borderRadius: 12,
-                        barThickness: 45
+                        barThickness: 30,
                     }]
                 },
                 options: {
@@ -194,33 +207,27 @@
                     plugins: {
                         legend: {
                             display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                precision: 0
-                            }
                         }
                     }
                 }
             });
             @endif
 
-            // 2. User Count Chart
             @if($usersChartData)
-            const usersData = @json($usersChartData);
-            new Chart(document.getElementById('usersChart').getContext('2d'), {
-                type: 'bar',
+            const ctxU = document.getElementById('usersChart').getContext('2d');
+            new Chart(ctxU, {
+                type: 'line',
                 data: {
-                    labels: usersData.labels,
+                    // Use array syntax ['labels'] instead of dot notation
+                    labels: @json($usersChartData['labels']),
                     datasets: [{
-                        label: 'Users Registered',
-                        data: usersData.values,
-                        backgroundColor: '#10b981',
-                        borderRadius: 12,
-                        barThickness: 45
+                        label: 'Registrations',
+                        data: @json($usersChartData['values']),
+                        borderColor: '#10b981',
+                        borderWidth: 4,
+                        fill: true,
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        tension: 0.4
                     }]
                 },
                 options: {
@@ -229,20 +236,24 @@
                     plugins: {
                         legend: {
                             display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                precision: 0
-                            }
                         }
                     }
                 }
             });
             @endif
         });
+
+        window.showSection = (sectionId) => {
+            document.querySelectorAll('main section').forEach(s => s.classList.add('hidden-section'));
+            const targetSection = document.getElementById(`section-${sectionId}`);
+            if (targetSection) targetSection.classList.remove('hidden-section');
+
+            document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+            const activeNav = document.getElementById(`nav-${sectionId}`);
+            if (activeNav) activeNav.classList.add('active');
+
+            lucide.createIcons();
+        };
     </script>
 </body>
 

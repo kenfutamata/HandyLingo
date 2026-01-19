@@ -73,7 +73,8 @@ class AdminGenerateReportsController extends Controller
             Log::error('Chart data generation failed: ' . $e->getMessage());
             $errorMessage = 'The Server encountered an error while processing your report.';
         }
-
+        $feedbackCount = Feedbacks::where('status', 'New')->count();
+        $userCount = Users::where('role', 'user')->where('status', 'active')->count(); 
         return response()->view('admin.admin_generate_reports', compact(
             'user',
             'ratingsChartData',
@@ -81,7 +82,9 @@ class AdminGenerateReportsController extends Controller
             'notifications',
             'unreadNotifications',
             'selectedMonth',
-            'errorMessage'
+            'errorMessage',
+            'feedbackCount',
+            'userCount'
         ));
     }
     private function getReportData(Request $request, bool $forPdf = false): array

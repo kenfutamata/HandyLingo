@@ -24,3 +24,5 @@ Homestead.yaml
 Thumbs.db
 *-firebase-adminsdk-*.json
 /laravel_admin/handylingo_admin/*.json
+
+.vercel
