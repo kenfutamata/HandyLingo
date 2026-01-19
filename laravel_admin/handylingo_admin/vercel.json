@@ -12,12 +12,8 @@
             "dest": "/public/assets/$1"
         },
         {
-            "src": "/css/(.*)",
-            "dest": "/public/css/$1"
-        },
-        {
-            "src": "/js/(.*)",
-            "dest": "/public/js/$1"
+            "src": "/landing_page/(.*)",
+            "dest": "/public/landing_page/$1"
         },
         {
             "src": "/favicon.ico",

@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Kreait\Firebase\Factory;
 
@@ -40,6 +41,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // Global fallback
+        if (env('APP_ENV') !== 'local') {
+            URL::forceScheme('https');
+        }
         putenv('GOOGLE_CLOUD_PHP_FIRESTORE_REST=true');
     }
 }

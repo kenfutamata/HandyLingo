@@ -8,6 +8,7 @@ use App\Http\Controllers\LandingPageController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\UsersController;
 use App\Http\Middleware\FirebaseMiddleware;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
 
@@ -19,7 +20,14 @@ Route::post('/submit-feedback', [LandingPageController::class, 'storeFeedback'])
 Route::get('/login', [AdminLoginController::class, 'viewLogin'])->name('login');
 Route::post('/login', [AdminLoginController::class, 'login'])->name('admin.login.submit');
 
-
+Route::get('/db-test', function () {
+    try {
+        DB::connection()->getPdo();
+        return "Connected successfully to: " . DB::connection()->getDatabaseName();
+    } catch (\Exception $e) {
+        return "Could not connect to the database. Please check your configuration. error:" . $e->getMessage();
+    }
+});
 Route::middleware('auth:admin')->group(function () {
     //Dasboard and logout routes
     Route::get('/handylingoadmin/dashboard', [AdminDashboard::class, 'index'])->name('admin.dashboard');
@@ -34,5 +42,5 @@ Route::middleware('auth:admin')->group(function () {
     //Notifications 
     Route::delete('/handylingoadmin/notifications/{id}', [NotificationController::class, 'destroy'])->name('admin.notifications.destroy');
     //Generate Report
-    Route::get('/handylingoadmin/generate-reports', [AdminGenerateReportsController::class, 'index'])->name('admin.generate.reports'); 
+    Route::get('/handylingoadmin/generate-reports', [AdminGenerateReportsController::class, 'index'])->name('admin.generate.reports');
 });
