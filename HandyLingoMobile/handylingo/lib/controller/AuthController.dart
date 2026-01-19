@@ -22,8 +22,6 @@ class AuthController {
           'last_name': lastName,
           'role': 'user',
           'status': 'active',
-          'created_at': DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String(),
         },
       );
 

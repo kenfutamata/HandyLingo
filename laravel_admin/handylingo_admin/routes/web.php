@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminDashboard;
+use App\Http\Controllers\AdminGenerateReportsController;
 use App\Http\Controllers\AdminLoginController;
 use App\Http\Controllers\FeedbacksController;
 use App\Http\Controllers\LandingPageController;
@@ -32,4 +33,6 @@ Route::middleware('auth:admin')->group(function () {
     Route::put('/handylingoadmin/manage-feedbacks/{id}', [FeedbacksController::class, 'update'])->name('admin.manage.feedbacks.update');
     //Notifications 
     Route::delete('/handylingoadmin/notifications/{id}', [NotificationController::class, 'destroy'])->name('admin.notifications.destroy');
+    //Generate Report
+    Route::get('/handylingoadmin/generate-reports', [AdminGenerateReportsController::class, 'index'])->name('admin.generate.reports'); 
 });
