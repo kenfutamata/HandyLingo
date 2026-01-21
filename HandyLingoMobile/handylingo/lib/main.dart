@@ -6,6 +6,7 @@ import 'views/Sign_in.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'views/welcome_dashboard.dart';
+import 'views/start_using.dart';
 
 // Simple global notifier used for theme state (avoids unresolved StateProvider error in some analyzer setups)
 final ValueNotifier<bool> themeIsLight = ValueNotifier<bool>(true);
@@ -125,9 +126,9 @@ class _MyAppState extends ConsumerState<MyApp> {
           // 5. Define your routes
           initialRoute: '/',
           routes: {
-            '/': (context) => const Sign_in(),
+            '/': (context) => const StartUsingPage(),
             // Define your home route here
-            '/home': (context) => const Sign_in(),
+            '/home': (context) => const StartUsingPage(),
           },
         );
       },
