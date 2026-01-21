@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\ExportUser;
 use App\Models\Users;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Facades\Excel;
 
 class UsersController extends Controller
 {
@@ -110,5 +112,10 @@ class UsersController extends Controller
         }
 
         return redirect()->route('admin.manage.users')->with('error', 'Failed to delete user. Check logs.');
+    }
+
+    public function export()
+    {
+        return Excel::download(new ExportUser, 'users.xlsx');
     }
 }

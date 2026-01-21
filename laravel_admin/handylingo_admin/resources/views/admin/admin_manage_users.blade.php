@@ -73,12 +73,13 @@
                     </div>
 
 
-                    <form method="GET" action="{{ route('admin.manage.users') }}" class="mb-6">
-                        <div class="flex flex-col md:flex-row gap-4">
-                            <div class="relative w-full md:w-1/3">
+                    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+
+                        <!-- SEARCH -->
+                        <form method="GET" action="{{ route('admin.manage.users') }}" class="w-full md:w-auto">
+                            <div class="relative w-full md:w-80">
                                 <i data-lucide="search"
-                                    class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                                </i>
+                                    class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
 
                                 <input
                                     type="text"
@@ -89,6 +90,7 @@
                        bg-white text-sm
                        focus:outline-none focus:ring-2 focus:ring-blue-500 
                        focus:border-blue-500 transition">
+
                                 <button
                                     type="submit"
                                     class="absolute right-1.5 top-1/2 -translate-y-1/2 
@@ -98,9 +100,19 @@
                                     Search
                                 </button>
                             </div>
-                        </div>
-                    </form>
+                        </form>
 
+                        <!-- EXPORT -->
+                        <a href="{{route('admin.manage.users.export')}}"
+                            class="inline-flex items-center gap-2 
+              bg-emerald-500 hover:bg-emerald-600 
+              text-white text-sm font-semibold 
+              px-5 py-2.5 rounded-xl shadow-sm transition">
+                            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                            Export to Excel
+                        </a>
+
+                    </div>
                     <!-- TABLE -->
                     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
                         <table class="w-full text-left border-collapse min-w-[700px]">

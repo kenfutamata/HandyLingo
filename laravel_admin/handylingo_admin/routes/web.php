@@ -28,6 +28,7 @@ Route::get('/db-test', function () {
         return "Could not connect to the database. Please check your configuration. error:" . $e->getMessage();
     }
 });
+
 Route::middleware('auth:admin')->group(function () {
     //Dasboard and logout routes
     Route::get('/handylingoadmin/dashboard', [AdminDashboard::class, 'index'])->name('admin.dashboard');
@@ -35,6 +36,7 @@ Route::middleware('auth:admin')->group(function () {
     //Manage Users Route
     Route::get('/handylingoadmin/manage-users', [UsersController::class, 'index'])->name('admin.manage.users');
     Route::delete('/handylingoadmin/manage-users/{id}', [UsersController::class, 'destroy'])->name('admin.manage.users.delete');
+    Route::get('/handylingoadmin/manage-users/export', [UsersController::class, 'export'])->name('admin.manage.users.export');
     //Manage Feedbacks
     Route::get('/handylingoadmin/manage-feedbacks', [FeedbacksController::class, 'index'])->name('admin.manage.feedbacks');
     Route::delete('/handylingoadmin/manage-feedbacks/{id}', [FeedbacksController::class, 'destroy'])->name('admin.manage.feedbacks.delete');
