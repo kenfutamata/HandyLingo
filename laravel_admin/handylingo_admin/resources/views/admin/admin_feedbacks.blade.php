@@ -102,7 +102,7 @@
                         </form>
 
                         <!-- EXPORT -->
-                        <a href=""
+                        <a href="{{route('admin.manage.feedbacks.export')}}"
                             class="inline-flex items-center gap-2 
               bg-emerald-500 hover:bg-emerald-600 
               text-white text-sm font-semibold 
@@ -137,14 +137,8 @@
                                     <td class="p-5 text-slate-600">{{$feedback->feedback_type}}</td>
                                     <td class="p-5 text-slate-600">{{$feedback->status}}</td>
                                     <td class="p-5">
+                                        @if($feedback->status === 'Completed')
                                         <div class="flex justify-center gap-2 ">
-                                            <form action="{{ route('admin.manage.feedbacks.update', $feedback->id) }}" method="POST">
-                                                @csrf
-                                                @METHOD('PUT')
-                                                <button class="p-2 rounded-lg text-slate-400 hover:text-green-600">
-                                                    <i data-lucide="check" class="w-4 h-4"></i>
-                                            </form>
-                                            </button>
                                             <button class="p-2 rounded-lg text-slate-400 hover:text-blue-600" onclick="openviewFeedbackModal(this)" data-feedback='@json($feedback)'>
                                                 <i data-lucide="eye" class="w-4 h-4"></i>
                                             </button>
@@ -153,6 +147,24 @@
                                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                                             </button>
                                         </div>
+                                        @else
+                                        <div class="flex justify-center gap-2 ">
+                                            <form action="{{ route('admin.manage.feedbacks.update', $feedback->id) }}" method="POST">
+                                                @csrf
+                                                @METHOD('PUT')
+                                                <button class="p-2 rounded-lg text-slate-400 hover:text-green-600">
+                                                    <i data-lucide="check" class="w-4 h-4"></i>
+                                                </button>
+                                            </form>
+                                            <button class="p-2 rounded-lg text-slate-400 hover:text-blue-600" onclick="openviewFeedbackModal(this)" data-feedback='@json($feedback)'>
+                                                <i data-lucide="eye" class="w-4 h-4"></i>
+                                            </button>
+                                            <button class="p-2 rounded-lg text-slate-400 hover:text-red-600"
+                                                onclick="openDeleteModal( '{{ route('admin.manage.feedbacks.delete', $feedback->id) }}')">
+                                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                            </button>
+                                        </div>
+                                        @endif
                                     </td>
                                 </tr>
                                 @endforeach

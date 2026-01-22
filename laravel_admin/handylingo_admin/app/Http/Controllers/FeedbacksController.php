@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\FeedbacksExport;
 use App\Models\Feedbacks;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Maatwebsite\Excel\Facades\Excel;
 
 class FeedbacksController extends Controller
 {
@@ -83,5 +85,10 @@ class FeedbacksController extends Controller
         $user = Feedbacks::findOrFail($id);
         $user->delete();
         return redirect()->back()->with('Success', 'Feedback deleted successfully.');
+    }
+
+    public function export()
+    {
+        return Excel::download(new FeedbacksExport, 'feedbacks.xlsx');
     }
 }

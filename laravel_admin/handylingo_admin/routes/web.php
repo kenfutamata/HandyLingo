@@ -41,6 +41,7 @@ Route::middleware('auth:admin')->group(function () {
     Route::get('/handylingoadmin/manage-feedbacks', [FeedbacksController::class, 'index'])->name('admin.manage.feedbacks');
     Route::delete('/handylingoadmin/manage-feedbacks/{id}', [FeedbacksController::class, 'destroy'])->name('admin.manage.feedbacks.delete');
     Route::put('/handylingoadmin/manage-feedbacks/{id}', [FeedbacksController::class, 'update'])->name('admin.manage.feedbacks.update');
+    Route::get('/handylingoadmin/manage-feedbacks/export', [FeedbacksController::class, 'export'])->name('admin.manage.feedbacks.export');
     //Notifications 
     Route::delete('/handylingoadmin/notifications/{id}', [NotificationController::class, 'destroy'])->name('admin.notifications.destroy');
     //Generate Report
