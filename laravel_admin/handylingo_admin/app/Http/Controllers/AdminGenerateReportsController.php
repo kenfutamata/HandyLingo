@@ -18,7 +18,6 @@ class AdminGenerateReportsController extends Controller
      */
     public function index(Request $request)
     {
-        // 1. Corrected Variable names (using $user consistently)
         $user = Auth::guard('admin')->user();
         $notifications = $user->notifications ?? collect();
         $unreadNotifications = $user->unreadNotifications ?? collect();
