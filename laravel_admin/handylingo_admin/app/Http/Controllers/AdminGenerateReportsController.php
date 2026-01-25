@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Feedbacks;
 use App\Models\Users;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\Request;
@@ -30,7 +31,7 @@ class AdminGenerateReportsController extends Controller
         $errorMessage = null;
 
         try {
-            // 2. APPLICATION FEEDBACK DATA
+            // 1. APPLICATION FEEDBACK DATA
             $ratingCounts = Feedbacks::query()
                 ->select('rating', DB::raw('COUNT(*) as count'))
                 ->whereYear('created_at', $date->year)
@@ -52,8 +53,7 @@ class AdminGenerateReportsController extends Controller
                 ];
             }
 
-            // 3. USER REGISTRATION DATA 
-            // Filtering for 'user' role and grouping by 'status'
+            // 2. USER REGISTRATION DATA 
             $userCounts = Users::query()
                 ->select('status', DB::raw('COUNT(*) as count'))
                 ->where(DB::raw('LOWER(role)'), 'user')
@@ -72,8 +72,10 @@ class AdminGenerateReportsController extends Controller
             Log::error('Chart data generation failed: ' . $e->getMessage());
             $errorMessage = 'The Server encountered an error while processing your report.';
         }
+
         $feedbackCount = Feedbacks::where('status', 'New')->count();
-        $userCount = Users::where('role', 'user')->where('status', 'active')->count(); 
+        $userCount = Users::where('role', 'user')->where('status', 'active')->count();
+
         return response()->view('admin.admin_generate_reports', compact(
             'user',
             'ratingsChartData',
@@ -86,91 +88,108 @@ class AdminGenerateReportsController extends Controller
             'userCount'
         ));
     }
-    private function getReportData(Request $request, bool $forPdf = false): array
+
+    public function download(Request $request)
     {
-        $ratingsChartData = null;
-        $trendsChartData = null;
-        $errorMessage = null;
+        $user = Auth::guard('admin')->user();
+        $reportData = $this->getReportData($request);
+
+        if (!empty($reportData['errorMessage'])) {
+            return redirect()->route('admin.generate.reports')->with('error', $reportData['errorMessage']);
+        }
+
+        $date = Carbon::parse($reportData['selectedMonth']);
+        $fileName = 'Admin-Report-' . $date->format('F-Y') . '.pdf';
+
+        // Configure PDF to allow remote images just in case, 
+        // though Base64 is our primary fix here.
+        $pdf = Pdf::loadView('admin.admin_download_report', array_merge(['user' => $user], $reportData))
+            ->setPaper('a4', 'portrait')
+            ->setOptions([
+                'isRemoteEnabled' => true,
+                'isHtml5ParserEnabled' => true,
+            ]);
+
+        return $pdf->download($fileName);
+    }
+
+    private function getReportData(Request $request): array
+    {
         $selectedMonth = $request->input('month', Carbon::now()->format('Y-m'));
-        $ratingChartImageUrl = null;
-        $trendsChartImageUrl = null;
+        $date = Carbon::parse($selectedMonth . '-01');
+
+        $ratingsChartImageUrl = null;
+        $errorMessage = null;
 
         try {
-            $date = Carbon::parse($selectedMonth . '-01');
-            $ratingCounts = Feedbacks::query()
-                ->select('rating', DB::raw('COUNT(*) as count'))
+            // Summary Totals
+            $feedbackCount = Feedbacks::whereYear('created_at', $date->year)
+                ->whereMonth('created_at', $date->month)
+                ->count();
+
+            $userCount = Users::where('role', 'user')
                 ->whereYear('created_at', $date->year)
                 ->whereMonth('created_at', $date->month)
-                ->whereNotNull('rating')
+                ->count();
+
+            // Ratings Data
+            $ratingCounts = Feedbacks::whereYear('created_at', $date->year)
+                ->whereMonth('created_at', $date->month)
+                ->select('rating', DB::raw('count(*) as count'))
                 ->groupBy('rating')
                 ->pluck('count', 'rating');
+
             if ($ratingCounts->isNotEmpty()) {
-                $ratingsChartData = [
-                    'values' => [
-                        (int) $ratingCounts->get(1, 0), // Count for ★ 1
-                        (int) $ratingCounts->get(2, 0), // Count for ★ 2
-                        (int) $ratingCounts->get(3, 0), // Count for ★ 3
-                        (int) $ratingCounts->get(4, 0), // Count for ★ 4
-                        (int) $ratingCounts->get(5, 0), // Count for ★ 5
-                    ],
+                $vals = [
+                    (int)$ratingCounts->get(1, 0),
+                    (int)$ratingCounts->get(2, 0),
+                    (int)$ratingCounts->get(3, 0),
+                    (int)$ratingCounts->get(4, 0),
+                    (int)$ratingCounts->get(5, 0)
                 ];
 
-                // 3. Generate the QuickChart URL
-                $ratingsChartImageUrl = $this->makeQuickChartUrl([
+                $chartConfig = [
                     'type' => 'bar',
                     'data' => [
-                        'labels' => ['★ 1', '★ 2', '★ 3', '★ 4', '★ 5'],
+                        'labels' => ['1 Star', '2 Star', '3 Star', '4 Star', '5 Star'],
                         'datasets' => [[
-                            'label' => 'Number of Reviews',
-                            'data' => $ratingsChartData['values'],
-                            'backgroundColor' => 'rgba(54, 162, 235, 0.6)', // Light Blue
-                            'borderColor' => 'rgb(54, 162, 235)',
-                            'borderWidth' => 1
+                            'label' => 'Reviews',
+                            'data' => $vals,
+                            'backgroundColor' => '#6366f1'
                         ]]
                     ],
                     'options' => [
-                        'legend' => ['display' => false],
-                        'title' => [
-                            'display' => true,
-                            'text' => 'Overall User Ratings'
-                        ],
-                        'scales' => [
-                            'yAxes' => [[
-                                'ticks' => [
-                                    'beginAtZero' => true,
-                                    'stepSize' => 1,
-                                    'precision' => 0 // Ensures no decimal points on the Y-axis
-                                ]
-                            ]]
-                        ]
+                        'title' => ['display' => true, 'text' => 'User Satisfaction (Stars)']
                     ]
-                ]);
-            }
-
-            $userCounts = Users::query()
-                ->select('role', DB::raw('COUNT(*) as count'))
-                ->whereYear('created_at', $date->year)
-                ->whereMonth('created_at', $date->month)
-                ->groupBy('role')
-                ->pluck('count', 'role');
-
-            if ($userCounts->isNotEmpty()) {
-                $usersChartData = [
-                    // Capitalize roles for better display (e.g., "Admin", "User")
-                    'labels' => $userCounts->keys()->map(fn($role) => ucfirst($role))->toArray(),
-                    'values' => $userCounts->values()->toArray(),
                 ];
+
+                $url = $this->makeQuickChartUrl($chartConfig);
+
+                // --- FIX STARTS HERE: Convert URL to Base64 ---
+                try {
+                    $imageData = file_get_contents($url);
+                    if ($imageData !== false) {
+                        $base64 = base64_encode($imageData);
+                        $ratingsChartImageUrl = 'data:image/png;base64,' . $base64;
+                    }
+                } catch (Exception $e) {
+                    Log::error("Failed to fetch chart image: " . $e->getMessage());
+                    // Fallback to URL if file_get_contents fails
+                    $ratingsChartImageUrl = $url;
+                }
+                // --- FIX ENDS ---
             }
+
+            return [
+                'selectedMonth' => $selectedMonth,
+                'feedbackCount' => $feedbackCount,
+                'userCount' => $userCount,
+                'ratingsChartImageUrl' => $ratingsChartImageUrl,
+                'errorMessage' => null
+            ];
         } catch (Exception $e) {
-            Log::error('Chart data generation failed: ' . $e->getMessage());
-            $errorMessage = 'The Server encountered an error while processing your report.';
+            return ['errorMessage' => 'Server Error: ' . $e->getMessage()];
         }
-        return [
-            'ratingsChartData' => $ratingsChartData,
-            'errorMessage' => $errorMessage,
-            'ratingsChartImageUrl' => $ratingChartImageUrl,
-            'selectedMont' => $selectedMonth
-        ];
     }
 
     private function makeQuickChartUrl(array $config)
@@ -178,48 +197,11 @@ class AdminGenerateReportsController extends Controller
         return 'https://quickchart.io/chart?c=' . urlencode(json_encode($config));
     }
 
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
-    }
+    // ... keeping the rest of the empty resource methods (create, store, etc.)
+    public function create() {}
+    public function store(Request $request) {}
+    public function show(string $id) {}
+    public function edit(string $id) {}
+    public function update(Request $request, string $id) {}
+    public function destroy(string $id) {}
 }

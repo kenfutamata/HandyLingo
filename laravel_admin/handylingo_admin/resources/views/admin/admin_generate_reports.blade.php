@@ -116,11 +116,12 @@
                             <input type="month" id="month" name="month" value="{{ $selectedMonth }}" onchange="this.form.submit()"
                                 class="border-0 bg-transparent text-sm font-bold focus:ring-0 cursor-pointer text-slate-700 px-3">
                         </form>
-
-                        <button onclick="window.print()" class="flex items-center justify-center gap-2 bg-slate-900 hover:bg-indigo-600 text-white px-6 py-3 rounded-2xl text-sm font-bold transition-all shadow-lg active:scale-95">
-                            <i data-lucide="file-down" class="w-4 h-4"></i>
-                            Export PDF
-                        </button>
+                        <form action="{{ route('admin.generate.reports.download') }}" method="get">
+                            <a href="{{route('admin.generate.reports.download')}}" class="flex items-center justify-center gap-2 bg-slate-900 hover:bg-indigo-600 text-white px-6 py-3 rounded-2xl text-sm font-bold transition-all shadow-lg active:scale-95">
+                                <i data-lucide="file-down" class="w-4 h-4"></i>
+                                Export PDF
+                            </a>
+                        </form>
                     </div>
                 </div>
 

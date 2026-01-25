@@ -46,4 +46,5 @@ Route::middleware('auth:admin')->group(function () {
     Route::delete('/handylingoadmin/notifications/{id}', [NotificationController::class, 'destroy'])->name('admin.notifications.destroy');
     //Generate Report
     Route::get('/handylingoadmin/generate-reports', [AdminGenerateReportsController::class, 'index'])->name('admin.generate.reports');
+    Route::get('/handylingoadmin/generate-reports/download', [AdminGenerateReportsController::class, 'download'])->name('admin.generate.reports.download');
 });
