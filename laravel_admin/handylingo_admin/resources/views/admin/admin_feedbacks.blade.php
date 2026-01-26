@@ -83,7 +83,7 @@
                                 <input
                                     type="text"
                                     name="search"
-                                    placeholder="Search users..."
+                                    placeholder="Search feedback..."
                                     value="{{ request('search') }}"
                                     class="w-full pl-11 pr-24 py-2.5 rounded-xl border border-slate-200 
                        bg-white text-sm
