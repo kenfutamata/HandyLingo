@@ -117,9 +117,9 @@
                                 class="border-0 bg-transparent text-sm font-bold focus:ring-0 cursor-pointer text-slate-700 px-3">
                         </form>
                         <form action="{{ route('admin.generate.reports.download') }}" method="get">
-                            <a href="{{route('admin.generate.reports.download')}}" class="flex items-center justify-center gap-2 bg-slate-900 hover:bg-indigo-600 text-white px-6 py-3 rounded-2xl text-sm font-bold transition-all shadow-lg active:scale-95">
-                                <i data-lucide="file-down" class="w-4 h-4"></i>
-                                Export PDF
+                            <a href="{{ route('admin.generate.reports.download', ['month' => $selectedMonth]) }}"
+                                class="p-2 bg-blue-600 text-white rounded">
+                                Download {{ \Carbon\Carbon::parse($selectedMonth)->format('F Y') }} Report
                             </a>
                         </form>
                     </div>

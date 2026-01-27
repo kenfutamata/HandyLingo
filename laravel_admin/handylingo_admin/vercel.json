@@ -3,9 +3,7 @@
     "functions": {
         "api/index.php": {
             "runtime": "vercel-php@0.7.2",
-            "config": {
-                "maxDuration": 30
-            }
+            "maxDuration": 30
         }
     },
     "routes": [
