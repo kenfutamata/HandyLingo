@@ -1,3 +1,4 @@
+// --- START OF FILE Paste January 29, 2026 - 5:03PM ---
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,7 +8,9 @@ import 'edit_profile.dart';
 import 'user_guide.dart';
 import 'help_pages.dart';
 import 'start_using.dart';
-import '../main.dart';
+// NOTE: Assuming AppVersionEditPage exists or is a placeholder
+ 
+import '../main.dart'; // This is where the Supabase client and themeIsLight are initialized
 
 class AccountPage extends StatefulWidget {
   const AccountPage({super.key});
@@ -19,96 +22,125 @@ class AccountPage extends StatefulWidget {
 class _AccountPageState extends State<AccountPage> {
   Map<String, dynamic>? _userRow;
   bool _loading = true;
+  
+  // Local Preference State
   bool _emailNotif = true;
   String _textSize = 'Medium';
   String _primarySL = 'Filipino';
   bool _whiteMode = true;
-
   String _voice = 'Male';
   double _voiceSpeed = 1.0;
-
   String _avatarGender = 'Male';
   double _signingSpeed = 1.0;
   bool _loop = false;
-
-  bool _soundOn = true;
+  // bool _soundOn = true; // Not used in state logic, commented out
 
   @override
   void initState() {
     super.initState();
-    _loadProfile();
-    _loadLocalPrefs();
+    // Run loading sequentially for cleaner state management
+    _loadAllData();
+  }
+
+  Future<void> _loadAllData() async {
+    setState(() => _loading = true);
+    await _loadLocalPrefs(); // Load initial local settings first
+    await _loadProfile(); // Then attempt to override with server data
+    setState(() => _loading = false);
   }
 
   Future<void> _loadProfile() async {
-    setState(() => _loading = true);
     try {
       final supabase = Supabase.instance.client;
       final userId = supabase.auth.currentUser?.id;
-      if (userId == null) throw Exception('No authenticated user');
+      
+      if (userId == null) {
+        print('DEBUG: No authenticated user. Cannot load profile.');
+        return;
+      }
+
+      print('DEBUG: Authenticated User ID: $userId');
 
       final row = await supabase
           .from('users')
           .select(
-            'id, first_name, last_name, user_name, email, role, avatar_url, avatar_gender, preferences',
+            'id, first_name, last_name, user_name, email, role',
           )
           .eq('id', userId)
           .maybeSingle();
-      setState(() {
-        _userRow = row;
-        // If server-side preferences exist, apply them to local UI state
-        try {
-          final prefs = row?['preferences'] as Map<String, dynamic>?;
-          if (prefs != null) {
-            _emailNotif = prefs['email_notif'] ?? _emailNotif;
-            _textSize = prefs['text_size'] ?? _textSize;
-            _primarySL = prefs['primary_sl'] ?? _primarySL;
-            _whiteMode = prefs['white_mode'] ?? _whiteMode;
-            _voice = prefs['voice'] ?? _voice;
-            _voiceSpeed = (prefs['voice_speed'] != null)
-                ? (prefs['voice_speed'] + 0.0)
-                : _voiceSpeed;
-            _avatarGender = prefs['avatar_gender'] ?? _avatarGender;
-            _signingSpeed = (prefs['signing_speed'] != null)
-                ? (prefs['signing_speed'] + 0.0)
-                : _signingSpeed;
-            _loop = prefs['sign_loop'] ?? _loop;
+
+      print('DEBUG: Fetched User Row: $row');
+
+      if (mounted) {
+        setState(() {
+          _userRow = row;
+          // If server-side preferences exist, apply them to local UI state
+          try {
+            final prefs = row?['preferences'] as Map<String, dynamic>?;
+            if (prefs != null) {
+              // Null-coalesce operator (??) ensures local state is kept if server value is null
+              _emailNotif = prefs['email_notif'] ?? _emailNotif;
+              _textSize = prefs['text_size'] ?? _textSize;
+              _primarySL = prefs['primary_sl'] ?? _primarySL;
+              _whiteMode = prefs['white_mode'] ?? _whiteMode;
+              _voice = prefs['voice'] ?? _voice;
+              
+              // Ensure numeric casting for doubles
+              _voiceSpeed = (prefs['voice_speed'] is num)
+                  ? (prefs['voice_speed'] as num).toDouble()
+                  : _voiceSpeed;
+              
+              _avatarGender = prefs['avatar_gender'] ?? _avatarGender;
+              
+              // Ensure numeric casting for doubles
+              _signingSpeed = (prefs['signing_speed'] is num)
+                  ? (prefs['signing_speed'] as num).toDouble()
+                  : _signingSpeed;
+
+              _loop = prefs['sign_loop'] ?? _loop;
+            }
+          } catch (e) {
+            print('ERROR parsing preferences: $e');
           }
+        });
+        
+        // Apply theme provider if needed
+        try {
+          themeIsLight.value = _whiteMode;
         } catch (_) {}
-      });
-      // Apply theme provider if needed
-      try {
-        themeIsLight.value = _whiteMode;
-      } catch (_) {}
+      }
     } catch (e) {
-      // ignore and show minimal UI
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      print('ERROR loading profile: $e');
+      // On error, we rely on _loadLocalPrefs() results
     }
   }
 
   Future<void> _loadLocalPrefs() async {
     final sp = await SharedPreferences.getInstance();
-    setState(() {
-      _emailNotif = sp.getBool('email_notif') ?? true;
-      _textSize = sp.getString('text_size') ?? 'Medium';
-      _primarySL = sp.getString('primary_sl') ?? 'Filipino';
-      _whiteMode = sp.getBool('white_mode') ?? true;
-      _voice = sp.getString('voice') ?? 'Male';
-      _voiceSpeed = sp.getDouble('voice_speed') ?? 1.0;
-      _avatarGender = sp.getString('avatar_gender') ?? 'Male';
-      _signingSpeed = sp.getDouble('signing_speed') ?? 1.0;
-      _loop = sp.getBool('sign_loop') ?? false;
-    });
+    if (mounted) {
+      setState(() {
+        _emailNotif = sp.getBool('email_notif') ?? true;
+        _textSize = sp.getString('text_size') ?? 'Medium';
+        _primarySL = sp.getString('primary_sl') ?? 'Filipino';
+        _whiteMode = sp.getBool('white_mode') ?? true;
+        _voice = sp.getString('voice') ?? 'Male';
+        _voiceSpeed = sp.getDouble('voice_speed') ?? 1.0;
+        _avatarGender = sp.getString('avatar_gender') ?? 'Male';
+        _signingSpeed = sp.getDouble('signing_speed') ?? 1.0;
+        _loop = sp.getBool('sign_loop') ?? false;
+      });
+    }
   }
 
   Future<void> _saveLocalPrefs() async {
     final sp = await SharedPreferences.getInstance();
+    
+    // 1. Save to SharedPreferences
     await sp.setBool('email_notif', _emailNotif);
     await sp.setString('text_size', _textSize);
     await sp.setString('primary_sl', _primarySL);
     await sp.setBool('white_mode', _whiteMode);
-    // Immediately update the app theme via global notifier (best-effort)
+    
     try {
       themeIsLight.value = _whiteMode;
     } catch (_) {}
@@ -120,9 +152,9 @@ class _AccountPageState extends State<AccountPage> {
     await sp.setDouble('signing_speed', _signingSpeed);
     await sp.setBool('sign_loop', _loop);
 
-    // attempt to persist into Supabase users table under 'preferences' JSON column
+    // 2. Persist to Supabase users table
     try {
-      final supabase = Supabase.instance.client;
+      final supabase = Supabase.instance.client; 
       final userId = supabase.auth.currentUser?.id;
       if (userId != null) {
         await supabase
@@ -141,9 +173,13 @@ class _AccountPageState extends State<AccountPage> {
               },
             })
             .eq('id', userId);
+        
+        // Since we successfully saved to Supabase, we should update _userRow locally
+        // to reflect any implicit changes, though preferences are isolated.
+        await _loadProfile(); 
       }
     } catch (e) {
-      // ignore; preference save failure is not fatal
+      print('Warning: Failed to persist preferences to server: $e');
     }
 
     if (mounted) {
@@ -154,11 +190,13 @@ class _AccountPageState extends State<AccountPage> {
   }
 
   void _goEditProfile() async {
+    // Pass a copy of the row data to avoid modifying state directly
     final res = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => EditProfilePage(userRow: _userRow)),
     );
     if (!mounted) return;
     if (res == true) {
+      // Reload profile after successful edit
       _loadProfile();
     }
   }
@@ -166,11 +204,15 @@ class _AccountPageState extends State<AccountPage> {
   Future<void> _logout() async {
     await Supabase.instance.client.auth.signOut();
     if (!mounted) return;
+    // Redirect to the sign-in route (defined in main.dart)
     Navigator.of(context).pushReplacementNamed('/');
   }
 
   @override
   Widget build(BuildContext context) {
+    // Get email directly from the authenticated session (most reliable source)
+    final String authenticatedEmail = Supabase.instance.client.auth.currentUser?.email ?? '';
+    
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -227,6 +269,7 @@ class _AccountPageState extends State<AccountPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
+                              // Display names, defaulting to empty string if null
                               '${_userRow?['first_name'] ?? ''} ${_userRow?['last_name'] ?? ''}',
                               style: const TextStyle(
                                 fontSize: 18,
@@ -238,7 +281,8 @@ class _AccountPageState extends State<AccountPage> {
                               style: const TextStyle(color: Colors.black54),
                             ),
                             Text(
-                              _userRow?['email'] ?? '',
+                              // Use the reliable authenticated email
+                              authenticatedEmail,
                               style: const TextStyle(color: Colors.black54),
                             ),
                           ],
@@ -318,7 +362,7 @@ class _AccountPageState extends State<AccountPage> {
                             children: [
                               Expanded(
                                 child: Text(
-                                  'Primary Sign Language:',
+                                    'Primary Sign Language:',
                                   style: GoogleFonts.inter(fontSize: 16),
                                 ),
                               ),
@@ -351,6 +395,7 @@ class _AccountPageState extends State<AccountPage> {
                             onChanged: (v) {
                               setState(() => _whiteMode = v);
                               try {
+                                // Update global theme notifier immediately
                                 themeIsLight.value = v;
                               } catch (_) {}
                             },

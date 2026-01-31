@@ -46,7 +46,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       final row = await supabase
           .from('users')
           .select(
-            'first_name,last_name,user_name,email,avatar_url,avatar_gender',
+            'first_name,last_name,user_name,email',
           )
           .eq('id', userId)
           .maybeSingle();
