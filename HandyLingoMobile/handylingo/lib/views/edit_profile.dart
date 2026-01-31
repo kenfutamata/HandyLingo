@@ -114,7 +114,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         'last_name': _lastCtrl.text.trim(),
         'user_name': _userCtrl.text.trim(),
         'email': _emailCtrl.text.trim(),
-        'avatar_gender': widget.userRow?['avatar_gender'] ?? 'Male',
+        // 'avatar_gender': widget.userRow?['avatar_gender'] ?? 'Male',
       };
 
       // Try to upload avatar to storage if picked
@@ -207,37 +207,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 ),
               ),
               const SizedBox(height: 12),
-
-              // Default avatar gender when no uploaded picture
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('Default avatar:'),
-                  const SizedBox(width: 12),
-                  ChoiceChip(
-                    label: const Text('Male'),
-                    selected:
-                        (widget.userRow?['avatar_gender'] ?? 'Male') == 'Male',
-                    onSelected: (_) async {
-                      setState(() {
-                        widget.userRow?['avatar_gender'] = 'Male';
-                      });
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  ChoiceChip(
-                    label: const Text('Female'),
-                    selected:
-                        (widget.userRow?['avatar_gender'] ?? 'Male') ==
-                        'Female',
-                    onSelected: (_) async {
-                      setState(() {
-                        widget.userRow?['avatar_gender'] = 'Female';
-                      });
-                    },
-                  ),
-                ],
-              ),
 
               const SizedBox(height: 20),
               TextFormField(

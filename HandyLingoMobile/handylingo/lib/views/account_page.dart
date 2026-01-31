@@ -1,4 +1,3 @@
-// --- START OF FILE Paste January 29, 2026 - 5:03PM ---
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -33,19 +32,17 @@ class _AccountPageState extends State<AccountPage> {
   String _avatarGender = 'Male';
   double _signingSpeed = 1.0;
   bool _loop = false;
-  // bool _soundOn = true; // Not used in state logic, commented out
 
   @override
   void initState() {
     super.initState();
-    // Run loading sequentially for cleaner state management
     _loadAllData();
   }
 
   Future<void> _loadAllData() async {
     setState(() => _loading = true);
-    await _loadLocalPrefs(); // Load initial local settings first
-    await _loadProfile(); // Then attempt to override with server data
+    await _loadLocalPrefs(); 
+    await _loadProfile(); 
     setState(() => _loading = false);
   }
 
@@ -54,49 +51,28 @@ class _AccountPageState extends State<AccountPage> {
       final supabase = Supabase.instance.client;
       final userId = supabase.auth.currentUser?.id;
       
-      if (userId == null) {
-        print('DEBUG: No authenticated user. Cannot load profile.');
-        return;
-      }
-
-      print('DEBUG: Authenticated User ID: $userId');
+      if (userId == null) return;
 
       final row = await supabase
           .from('users')
-          .select(
-            'id, first_name, last_name, user_name, email, role',
-          )
+          .select('id, first_name, last_name, user_name, email, role')
           .eq('id', userId)
           .maybeSingle();
-
-      print('DEBUG: Fetched User Row: $row');
 
       if (mounted) {
         setState(() {
           _userRow = row;
-          // If server-side preferences exist, apply them to local UI state
           try {
             final prefs = row?['preferences'] as Map<String, dynamic>?;
             if (prefs != null) {
-              // Null-coalesce operator (??) ensures local state is kept if server value is null
               _emailNotif = prefs['email_notif'] ?? _emailNotif;
               _textSize = prefs['text_size'] ?? _textSize;
               _primarySL = prefs['primary_sl'] ?? _primarySL;
               _whiteMode = prefs['white_mode'] ?? _whiteMode;
               _voice = prefs['voice'] ?? _voice;
-              
-              // Ensure numeric casting for doubles
-              _voiceSpeed = (prefs['voice_speed'] is num)
-                  ? (prefs['voice_speed'] as num).toDouble()
-                  : _voiceSpeed;
-              
+              _voiceSpeed = (prefs['voice_speed'] is num) ? (prefs['voice_speed'] as num).toDouble() : _voiceSpeed;
               _avatarGender = prefs['avatar_gender'] ?? _avatarGender;
-              
-              // Ensure numeric casting for doubles
-              _signingSpeed = (prefs['signing_speed'] is num)
-                  ? (prefs['signing_speed'] as num).toDouble()
-                  : _signingSpeed;
-
+              _signingSpeed = (prefs['signing_speed'] is num) ? (prefs['signing_speed'] as num).toDouble() : _signingSpeed;
               _loop = prefs['sign_loop'] ?? _loop;
             }
           } catch (e) {
@@ -104,14 +80,10 @@ class _AccountPageState extends State<AccountPage> {
           }
         });
         
-        // Apply theme provider if needed
-        try {
-          themeIsLight.value = _whiteMode;
-        } catch (_) {}
+        try { themeIsLight.value = _whiteMode; } catch (_) {}
       }
     } catch (e) {
       print('ERROR loading profile: $e');
-      // On error, we rely on _loadLocalPrefs() results
     }
   }
 
@@ -134,48 +106,36 @@ class _AccountPageState extends State<AccountPage> {
 
   Future<void> _saveLocalPrefs() async {
     final sp = await SharedPreferences.getInstance();
-    
-    // 1. Save to SharedPreferences
     await sp.setBool('email_notif', _emailNotif);
     await sp.setString('text_size', _textSize);
     await sp.setString('primary_sl', _primarySL);
     await sp.setBool('white_mode', _whiteMode);
     
-    try {
-      themeIsLight.value = _whiteMode;
-    } catch (_) {}
+    try { themeIsLight.value = _whiteMode; } catch (_) {}
 
     await sp.setString('voice', _voice);
     await sp.setDouble('voice_speed', _voiceSpeed);
-
     await sp.setString('avatar_gender', _avatarGender);
     await sp.setDouble('signing_speed', _signingSpeed);
     await sp.setBool('sign_loop', _loop);
 
-    // 2. Persist to Supabase users table
     try {
       final supabase = Supabase.instance.client; 
       final userId = supabase.auth.currentUser?.id;
       if (userId != null) {
-        await supabase
-            .from('users')
-            .update({
-              'preferences': {
-                'email_notif': _emailNotif,
-                'text_size': _textSize,
-                'primary_sl': _primarySL,
-                'white_mode': _whiteMode,
-                'voice': _voice,
-                'voice_speed': _voiceSpeed,
-                'avatar_gender': _avatarGender,
-                'signing_speed': _signingSpeed,
-                'sign_loop': _loop,
-              },
-            })
-            .eq('id', userId);
-        
-        // Since we successfully saved to Supabase, we should update _userRow locally
-        // to reflect any implicit changes, though preferences are isolated.
+        await supabase.from('users').update({
+          'preferences': {
+            'email_notif': _emailNotif,
+            'text_size': _textSize,
+            'primary_sl': _primarySL,
+            'white_mode': _whiteMode,
+            'voice': _voice,
+            'voice_speed': _voiceSpeed,
+            'avatar_gender': _avatarGender,
+            'signing_speed': _signingSpeed,
+            'sign_loop': _loop,
+          },
+        }).eq('id', userId);
         await _loadProfile(); 
       }
     } catch (e) {
@@ -183,34 +143,25 @@ class _AccountPageState extends State<AccountPage> {
     }
 
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Preferences saved')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Preferences saved')));
     }
   }
 
   void _goEditProfile() async {
-    // Pass a copy of the row data to avoid modifying state directly
     final res = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => EditProfilePage(userRow: _userRow)),
     );
-    if (!mounted) return;
-    if (res == true) {
-      // Reload profile after successful edit
-      _loadProfile();
-    }
+    if (res == true) _loadProfile();
   }
 
   Future<void> _logout() async {
     await Supabase.instance.client.auth.signOut();
     if (!mounted) return;
-    // Redirect to the sign-in route (defined in main.dart)
     Navigator.of(context).pushReplacementNamed('/');
   }
 
   @override
   Widget build(BuildContext context) {
-    // Get email directly from the authenticated session (most reliable source)
     final String authenticatedEmail = Supabase.instance.client.auth.currentUser?.email ?? '';
     
     return Scaffold(
@@ -220,16 +171,11 @@ class _AccountPageState extends State<AccountPage> {
         backgroundColor: const Color(0xFFEAF8FB),
         leading: IconButton(
           icon: const Icon(Icons.info_outline, color: Colors.black87),
-          onPressed: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const UserGuidePage())),
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const UserGuidePage())),
         ),
         title: Text(
           'HandyLingo',
-          style: GoogleFonts.inter(
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
-          ),
+          style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.black87),
         ),
       ),
       body: _loading
@@ -239,27 +185,18 @@ class _AccountPageState extends State<AccountPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'ACCOUNT',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
+                  const Text('ACCOUNT', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
                   Row(
                     children: [
                       CircleAvatar(
                         radius: 36,
                         backgroundColor: Colors.white,
-                        backgroundImage: _userRow?['avatar_url'] != null
-                            ? NetworkImage(_userRow!['avatar_url'])
-                            : null,
+                        backgroundImage: _userRow?['avatar_url'] != null ? NetworkImage(_userRow!['avatar_url']) : null,
                         child: _userRow?['avatar_url'] == null
                             ? Icon(
-                                (_userRow?['avatar_gender'] ?? _avatarGender) ==
-                                        'Female'
-                                    ? Icons.female
-                                    : Icons.male,
-                                size: 36,
-                                color: Colors.black54,
+                                (_userRow?['avatar_gender'] ?? _avatarGender) == 'Female' ? Icons.female : Icons.male,
+                                size: 36, color: Colors.black54,
                               )
                             : null,
                       ),
@@ -268,35 +205,18 @@ class _AccountPageState extends State<AccountPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              // Display names, defaulting to empty string if null
-                              '${_userRow?['first_name'] ?? ''} ${_userRow?['last_name'] ?? ''}',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            Text('${_userRow?['first_name'] ?? ''} ${_userRow?['last_name'] ?? ''}',
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                             ),
-                            Text(
-                              _userRow?['user_name'] ?? '',
-                              style: const TextStyle(color: Colors.black54),
-                            ),
-                            Text(
-                              // Use the reliable authenticated email
-                              authenticatedEmail,
-                              style: const TextStyle(color: Colors.black54),
-                            ),
+                            Text(_userRow?['user_name'] ?? '', style: const TextStyle(color: Colors.black54)),
+                            Text(authenticatedEmail, style: const TextStyle(color: Colors.black54)),
                           ],
                         ),
                       ),
-                      IconButton(
-                        onPressed: _goEditProfile,
-                        icon: const Icon(Icons.edit),
-                      ),
+                      IconButton(onPressed: _goEditProfile, icon: const Icon(Icons.edit)),
                     ],
                   ),
                   const SizedBox(height: 20),
-
-                  // Edit Profile button
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -311,281 +231,104 @@ class _AccountPageState extends State<AccountPage> {
                   ),
 
                   const SizedBox(height: 18),
-                  const Text(
-                    'Preferences',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  const Text('Preferences', style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Column(
-                        children: [
-                          SwitchListTile(
-                            value: _emailNotif,
-                            title: const Text('Email Notifications'),
-                            onChanged: (v) => setState(() => _emailNotif = v),
+                    child: Column(
+                      children: [
+                        SwitchListTile(
+                          value: _emailNotif,
+                          title: const Text('Email Notifications'),
+                          onChanged: (v) => setState(() => _emailNotif = v),
+                        ),
+                        ListTile(
+                          title: const Text('Text Size:'),
+                          trailing: DropdownButton<String>(
+                            value: _textSize,
+                            underline: const SizedBox(),
+                            items: ['Small', 'Medium', 'Large'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                            onChanged: (v) => setState(() => _textSize = v ?? 'Medium'),
                           ),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  'Text Size:',
-                                  style: GoogleFonts.inter(fontSize: 16),
-                                ),
-                              ),
-                              DropdownButton<String>(
-                                value: _textSize,
-                                style: GoogleFonts.inter(color: Colors.black87),
-                                items: const [
-                                  DropdownMenuItem(
-                                    value: 'Small',
-                                    child: Text('Small'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'Medium',
-                                    child: Text('Medium'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'Large',
-                                    child: Text('Large'),
-                                  ),
-                                ],
-                                onChanged: (v) =>
-                                    setState(() => _textSize = v ?? 'Medium'),
-                              ),
-                            ],
+                        ),
+                        ListTile(
+                          title: const Text('Primary Sign Language:'),
+                          trailing: DropdownButton<String>(
+                            value: _primarySL,
+                            underline: const SizedBox(),
+                            items: ['Filipino', 'International'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                            onChanged: (v) => setState(() => _primarySL = v ?? 'Filipino'),
                           ),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                    'Primary Sign Language:',
-                                  style: GoogleFonts.inter(fontSize: 16),
-                                ),
-                              ),
-                              DropdownButton<String>(
-                                value: _primarySL,
-                                style: GoogleFonts.inter(color: Colors.black87),
-                                items: const [
-                                  DropdownMenuItem(
-                                    value: 'Filipino',
-                                    child: Text('Filipino'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'International',
-                                    child: Text('International'),
-                                  ),
-                                ],
-                                onChanged: (v) => setState(
-                                  () => _primarySL = v ?? 'Filipino',
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          SwitchListTile(
-                            value: _whiteMode,
-                            title: Text(
-                              'White Mode (on) / Dark Mode (off)',
-                              style: GoogleFonts.inter(),
-                            ),
-                            onChanged: (v) {
-                              setState(() => _whiteMode = v);
-                              try {
-                                // Update global theme notifier immediately
-                                themeIsLight.value = v;
-                              } catch (_) {}
-                            },
-                          ),
-                        ],
-                      ),
+                        ),
+                        SwitchListTile(
+                          value: _whiteMode,
+                          title: const Text('White Mode (on) / Dark Mode (off)'),
+                          onChanged: (v) {
+                            setState(() => _whiteMode = v);
+                            try { themeIsLight.value = v; } catch (_) {}
+                          },
+                        ),
+                      ],
                     ),
                   ),
 
                   const SizedBox(height: 16),
-                  const Text(
-                    'Audio',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  const Text('Audio', style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  'Voice:',
-                                  style: GoogleFonts.inter(fontSize: 16),
-                                ),
-                              ),
-                              DropdownButton<String>(
-                                value: _voice,
-                                style: GoogleFonts.inter(color: Colors.black87),
-                                items: const [
-                                  DropdownMenuItem(
-                                    value: 'Male',
-                                    child: Text('Male'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'Female',
-                                    child: Text('Female'),
-                                  ),
-                                ],
-                                onChanged: (v) =>
-                                    setState(() => _voice = v ?? 'Male'),
-                              ),
-                            ],
+                    child: Column(
+                      children: [
+                        ListTile(
+                          title: const Text('Voice:'),
+                          trailing: DropdownButton<String>(
+                            value: _voice,
+                            underline: const SizedBox(),
+                            items: ['Male', 'Female'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                            onChanged: (v) => setState(() => _voice = v ?? 'Male'),
                           ),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  'Speed:',
-                                  style: GoogleFonts.inter(fontSize: 16),
-                                ),
-                              ),
-                              DropdownButton<double>(
-                                value: _voiceSpeed,
-                                style: GoogleFonts.inter(color: Colors.black87),
-                                items: const [
-                                  DropdownMenuItem(
-                                    value: 0.25,
-                                    child: Text('0.25'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 0.5,
-                                    child: Text('0.50'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 0.75,
-                                    child: Text('0.75'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 1.0,
-                                    child: Text('1.00'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 1.25,
-                                    child: Text('1.25'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 1.5,
-                                    child: Text('1.50'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 1.75,
-                                    child: Text('1.75'),
-                                  ),
-                                ],
-                                onChanged: (v) =>
-                                    setState(() => _voiceSpeed = v ?? 1.0),
-                              ),
-                            ],
+                        ),
+                        ListTile(
+                          title: const Text('Speed:'),
+                          trailing: DropdownButton<double>(
+                            value: _voiceSpeed,
+                            underline: const SizedBox(),
+                            items: [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75].map((d) => DropdownMenuItem(value: d, child: Text(d.toStringAsFixed(2)))).toList(),
+                            onChanged: (v) => setState(() => _voiceSpeed = v ?? 1.0),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
 
                   const SizedBox(height: 16),
-                  const Text(
-                    'Sign Language',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  const Text('Sign Language', style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  'Avatar:',
-                                  style: GoogleFonts.inter(fontSize: 16),
-                                ),
-                              ),
-                              DropdownButton<String>(
-                                value: _avatarGender,
-                                style: GoogleFonts.inter(color: Colors.black87),
-                                items: const [
-                                  DropdownMenuItem(
-                                    value: 'Male',
-                                    child: Text('Male'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'Female',
-                                    child: Text('Female'),
-                                  ),
-                                ],
-                                onChanged: (v) =>
-                                    setState(() => _avatarGender = v ?? 'Male'),
-                              ),
-                            ],
+                    child: Column(
+                      children: [
+                        ListTile(
+                          title: const Text('Avatar:'),
+                          trailing: DropdownButton<String>(
+                            value: _avatarGender,
+                            underline: const SizedBox(),
+                            items: ['Male', 'Female'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                            onChanged: (v) => setState(() => _avatarGender = v ?? 'Male'),
                           ),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  'Signing Speed:',
-                                  style: GoogleFonts.inter(fontSize: 16),
-                                ),
-                              ),
-                              DropdownButton<double>(
-                                value: _signingSpeed,
-                                style: GoogleFonts.inter(color: Colors.black87),
-                                items: const [
-                                  DropdownMenuItem(
-                                    value: 0.25,
-                                    child: Text('0.25'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 0.5,
-                                    child: Text('0.50'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 0.75,
-                                    child: Text('0.75'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 1.0,
-                                    child: Text('1.00'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 1.25,
-                                    child: Text('1.25'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 1.5,
-                                    child: Text('1.50'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 1.75,
-                                    child: Text('1.75'),
-                                  ),
-                                ],
-                                onChanged: (v) =>
-                                    setState(() => _signingSpeed = v ?? 1.0),
-                              ),
-                            ],
+                        ),
+                        ListTile(
+                          title: const Text('Signing Speed:'),
+                          trailing: DropdownButton<double>(
+                            value: _signingSpeed,
+                            underline: const SizedBox(),
+                            items: [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75].map((d) => DropdownMenuItem(value: d, child: Text(d.toStringAsFixed(2)))).toList(),
+                            onChanged: (v) => setState(() => _signingSpeed = v ?? 1.0),
                           ),
-                          const SizedBox(height: 6),
-                          SwitchListTile(
-                            value: _loop,
-                            title: const Text('Loop'),
-                            onChanged: (v) => setState(() => _loop = v),
-                          ),
-                        ],
-                      ),
+                        ),
+                        SwitchListTile(
+                          value: _loop,
+                          title: const Text('Loop'),
+                          onChanged: (v) => setState(() => _loop = v),
+                        ),
+                      ],
                     ),
                   ),
 
@@ -604,57 +347,21 @@ class _AccountPageState extends State<AccountPage> {
                   ),
 
                   const SizedBox(height: 16),
-                  const Text(
-                    'Help',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  const Text('Help', style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   Card(
                     child: Column(
                       children: [
-                        ListTile(
-                          title: const Text('Frequently asked questions'),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const FaqPage()),
-                          ),
-                        ),
-                        ListTile(
-                          title: const Text('Give feedback'),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const FeedbackPage(),
-                            ),
-                          ),
-                        ),
-                        ListTile(
-                          title: const Text('User Guide'),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const UserGuidePage(),
-                            ),
-                          ),
-                        ),
-                        ListTile(
-                          title: const Text('Terms of use'),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const TermsPage(),
-                            ),
-                          ),
-                        ),
+                        ListTile(title: const Text('Frequently asked questions'), trailing: const Icon(Icons.chevron_right), onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FaqPage()))),
+                        ListTile(title: const Text('Give feedback'), trailing: const Icon(Icons.chevron_right), onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FeedbackPage()))),
+                        ListTile(title: const Text('User Guide'), trailing: const Icon(Icons.chevron_right), onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const UserGuidePage()))),
+                        ListTile(title: const Text('Terms of use'), trailing: const Icon(Icons.chevron_right), onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TermsPage()))),
                       ],
                     ),
                   ),
 
                   const SizedBox(height: 16),
-                  const Text(
-                    'App Version',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  const Text('App Version', style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   Card(
                     child: ListTile(
@@ -663,20 +370,10 @@ class _AccountPageState extends State<AccountPage> {
                       onTap: () {
                         final role = _userRow?['role'] as String? ?? 'user';
                         if (role != 'admin') {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Only admins can change app version.',
-                              ),
-                            ),
-                          );
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Only admins can change app version.')));
                           return;
                         }
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const AppVersionEditPage(),
-                          ),
-                        );
+                        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AppVersionEditPage()));
                       },
                     ),
                   ),
@@ -686,19 +383,14 @@ class _AccountPageState extends State<AccountPage> {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: _logout,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.redAccent,
-                        foregroundColor: Colors.white,
-                      ),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
                       child: const Text('Log out'),
                     ),
                   ),
-
                   const SizedBox(height: 32),
                 ],
               ),
             ),
-
       bottomNavigationBar: BottomAppBar(
         color: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
@@ -710,33 +402,13 @@ class _AccountPageState extends State<AccountPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 InkWell(
-                  onTap: () => Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (_) => const StartUsingPage()),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.view_in_ar, size: 22),
-                      Text(
-                        'SL',
-                        style: GoogleFonts.inter(fontWeight: FontWeight.w700),
-                      ),
-                    ],
-                  ),
+                  onTap: () => Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const StartUsingPage())),
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.view_in_ar, size: 22), Text('SL', style: GoogleFonts.inter(fontWeight: FontWeight.w700))]),
                 ),
-                Text(
-                  'HANDYLINGO',
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w700),
-                ),
+                Text('HANDYLINGO', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
                 InkWell(
-                  onTap: () {}, // already on Account page
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.person, size: 22),
-                      Text('Account', style: GoogleFonts.inter(fontSize: 10)),
-                    ],
-                  ),
+                  onTap: () {}, 
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.person, size: 22), Text('Account', style: GoogleFonts.inter(fontSize: 10))]),
                 ),
               ],
             ),
