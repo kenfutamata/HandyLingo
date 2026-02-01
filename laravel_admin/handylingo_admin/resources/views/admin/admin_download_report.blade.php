@@ -50,7 +50,7 @@
                 $width = ($count / $maxVal) * 100;
             @endphp
             <div class="bar-row">
-                <div class="bar-label">{{ $rating }} ★</div>
+                <div class="bar-label">{{ $rating }}</div>
                 <div class="bar-track">
                     <div class="bar-fill" style="width: {{ $width }}%;"></div>
                 </div>
