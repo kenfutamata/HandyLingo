@@ -255,8 +255,8 @@ class _AccountPageState extends State<AccountPage> {
                           trailing: DropdownButton<String>(
                             value: _primarySL,
                             underline: const SizedBox(),
-                            items: ['Filipino', 'International'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                            onChanged: (v) => setState(() => _primarySL = v ?? 'Filipino'),
+                            items: ['International', 'Filipino'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                            onChanged: (v) => setState(() => _primarySL = v ?? 'International'),
                           ),
                         ),
                         SwitchListTile(
@@ -365,7 +365,7 @@ class _AccountPageState extends State<AccountPage> {
                   const SizedBox(height: 8),
                   Card(
                     child: ListTile(
-                      title: const Text('2.5.1 (135)'),
+                      title: const Text('1.0.0'),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () {
                         final role = _userRow?['role'] as String? ?? 'user';
