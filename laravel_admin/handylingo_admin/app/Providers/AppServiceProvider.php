@@ -33,6 +33,10 @@ class AppServiceProvider extends ServiceProvider
         //         ])
         //         ->createFirestore();
         // });
+
+        if (config('app.env') === 'production' && isset($_SERVER['VERCEL_URL'])) {
+            $this->app->useStoragePath('/tmp');
+        }
     }
 
     /**

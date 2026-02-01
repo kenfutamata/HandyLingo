@@ -92,14 +92,12 @@ class AdminGenerateReportsController extends Controller
         $date = Carbon::parse($reportData['selectedMonth'] . '-01');
         $fileName = 'Admin-Report-' . $date->format('F-Y') . '.pdf';
 
+        // Force Laravel to use /tmp for PDF generation to avoid "Read-only file system"
         $pdf = Pdf::loadView('admin.admin_download_report', array_merge(['user' => $user], $reportData));
         $pdf->setPaper('a4', 'portrait');
-        
         $pdf->setOptions([
-            'isRemoteEnabled' => true,
             'isHtml5ParserEnabled' => true,
-            // If GD is still false, DomPDF will skip the image instead of crashing
-            'enable_gd' => extension_loaded('gd'), 
+            'enable_gd' => false, // DISABLING GD COMPLETELY
         ]);
 
         return $pdf->download($fileName);
@@ -109,7 +107,6 @@ class AdminGenerateReportsController extends Controller
     {
         $selectedMonth = $request->input('month', Carbon::now()->format('Y-m'));
         $date = Carbon::parse($selectedMonth . '-01');
-        $ratingsChartImageUrl = null;
 
         try {
             $feedbackCount = Feedbacks::whereYear('created_at', $date->year)
@@ -119,47 +116,30 @@ class AdminGenerateReportsController extends Controller
                 ->whereYear('created_at', $date->year)
                 ->whereMonth('created_at', $date->month)->count();
 
+            // Get the raw counts for the CSS chart
             $ratingCounts = Feedbacks::whereYear('created_at', $date->year)
                 ->whereMonth('created_at', $date->month)
                 ->select('rating', DB::raw('count(*) as count'))
-                ->groupBy('rating')->pluck('count', 'rating');
+                ->groupBy('rating')->pluck('count', 'rating')->toArray();
 
-            if ($ratingCounts->isNotEmpty()) {
-                $vals = [(int)$ratingCounts->get(1, 0), (int)$ratingCounts->get(2, 0), (int)$ratingCounts->get(3, 0), (int)$ratingCounts->get(4, 0), (int)$ratingCounts->get(5, 0)];
-                
-                $chartConfig = [
-                    'type' => 'bar',
-                    'data' => [
-                        'labels' => ['1★', '2★', '3★', '4★', '5★'],
-                        'datasets' => [[
-                            'label' => 'Reviews',
-                            'data' => $vals,
-                            'backgroundColor' => 'rgba(99, 102, 241, 1)'
-                        ]]
-                    ],
-                    'options' => [
-                        'devicePixelRatio' => 2 // Higher quality
-                    ]
-                ];
-
-                $url = 'https://quickchart.io/chart?c=' . urlencode(json_encode($chartConfig));
-                $response = Http::timeout(15)->withoutVerifying()->get($url);
-
-                if ($response->successful()) {
-                    // Back to Base64 PNG - this is standard for DomPDF
-                    $ratingsChartImageUrl = 'data:image/png;base64,' . base64_encode($response->body());
-                }
+            // Ensure all ratings 1-5 exist in the array
+            $chartData = [];
+            $maxVal = 0;
+            for ($i = 1; $i <= 5; $i++) {
+                $count = $ratingCounts[$i] ?? 0;
+                $chartData[$i] = $count;
+                if ($count > $maxVal) $maxVal = $count;
             }
 
             return [
                 'selectedMonth' => $selectedMonth,
                 'feedbackCount' => $feedbackCount,
                 'userCount' => $userCount,
-                'ratingsChartImageUrl' => $ratingsChartImageUrl,
+                'chartData' => $chartData, // RAW NUMBERS
+                'maxVal' => $maxVal > 0 ? $maxVal : 1, // Avoid division by zero
                 'errorMessage' => null
             ];
         } catch (Exception $e) {
-            Log::error('Report Data Error: ' . $e->getMessage());
             return ['errorMessage' => 'Server Error: ' . $e->getMessage()];
         }
     }

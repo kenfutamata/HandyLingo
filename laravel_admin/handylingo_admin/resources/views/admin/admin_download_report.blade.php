@@ -1,130 +1,63 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html>
 <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>Monthly Performance Report</title>
     <style>
-        body {
-            font-family: sans-serif;
-            color: #334155;
-            margin: 0;
-            padding: 20px;
-        }
+        body { font-family: sans-serif; color: #334155; }
+        .header { border-bottom: 2px solid #113882; padding-bottom: 10px; margin-bottom: 20px; }
+        
+        /* Summary Boxes */
+        .summary-table { width: 100%; margin-bottom: 30px; }
+        .card { border: 1px solid #e2e8f0; padding: 15px; text-align: center; width: 48%; }
+        .card-label { font-size: 10px; color: #94a3b8; text-transform: uppercase; }
+        .card-value { font-size: 24px; font-weight: bold; }
 
-        .header {
-            margin-bottom: 30px;
-            border-bottom: 2px solid #113882;
-            padding-bottom: 10px;
-        }
-
-        .title {
-            color: #113882;
-            font-size: 28px;
-            font-weight: bold;
-            margin: 0;
-        }
-
-        .subtitle {
-            font-size: 18px;
-            color: #64748b;
-            margin: 5px 0;
-        }
-
-        /* Table used for layout instead of Grid */
-        .summary-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-
-        .card {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            padding: 20px;
-            text-align: center;
-            width: 45%;
-        }
-
-        .card-label {
-            font-size: 12px;
-            text-transform: uppercase;
-            color: #94a3b8;
-            font-weight: bold;
-        }
-
-        .card-value {
-            font-size: 32px;
-            font-weight: bold;
-            color: #1e293b;
-            margin: 10px 0;
-        }
-
-        .chart-section {
-            margin-top: 40px;
-            text-align: center;
-        }
-
-        .chart-title {
-            font-size: 20px;
-            font-weight: bold;
-            margin-bottom: 15px;
-            text-align: left;
-        }
-
-        .chart-img {
-            width: 100%;
-            max-width: 500px;
-            border: 1px solid #eee;
-        }
-
-        .no-data {
-            padding: 50px;
-            text-align: center;
-            border: 2px dashed #cbd5e1;
-            color: #94a3b8;
-        }
+        /* CSS BAR CHART */
+        .chart-container { margin-top: 30px; width: 100%; }
+        .bar-row { margin-bottom: 10px; clear: both; height: 30px; }
+        .bar-label { float: left; width: 40px; line-height: 30px; font-size: 14px; }
+        .bar-track { float: left; width: 450px; background: #f1f5f9; height: 20px; margin-top: 5px; border-radius: 4px; }
+        .bar-fill { height: 100%; background: #6366f1; border-radius: 4px; }
+        .bar-count { float: left; margin-left: 10px; line-height: 30px; font-size: 14px; color: #64748b; }
     </style>
 </head>
-
 <body>
 
     <div class="header">
-        <h1 class="title">Monthly Performance Report</h1>
-        <p class="subtitle">HandyLingo — {{ \Carbon\Carbon::parse($selectedMonth)->format('F Y') }}</p>
+        <h1>Monthly Performance Report</h1>
+        <p>HandyLingo — {{ \Carbon\Carbon::parse($selectedMonth)->format('F Y') }}</p>
     </div>
 
-    <h2 style="font-size: 20px;">Summary</h2>
+    <h3>Summary</h3>
     <table class="summary-table">
         <tr>
-            <td class="card" style="margin-right: 10px;">
-                <div class="card-label">Total Users (This Month)</div>
-                <div class="card-value">{{ number_format($userCount) }}</div>
+            <td class="card">
+                <div class="card-label">Total Users</div>
+                <div class="card-value">{{ $userCount }}</div>
             </td>
-            <td width="5%"></td> <!-- Spacer -->
+            <td width="4%"></td>
             <td class="card">
                 <div class="card-label">Feedback Received</div>
-                <div class="card-value">{{ number_format($feedbackCount) }}</div>
+                <div class="card-value">{{ $feedbackCount }}</div>
             </td>
         </tr>
     </table>
 
-    <div class="chart-section">
-        <h2 class="chart-title">User Satisfaction</h2>
-        @if($ratingsChartImageUrl)
-        <div style="text-align: center; margin-top: 20px;">
-            <h3>User Satisfaction</h3>
-            <div style="width: 500px; height: auto; margin: 0 auto;">
-                {!! $ratingsChartImageUrl !!}
+    <h3>User Satisfaction (Rating Distribution)</h3>
+    <div class="chart-container">
+        @foreach($chartData as $rating => $count)
+            @php
+                // Calculate width as percentage of the max value
+                $width = ($count / $maxVal) * 100;
+            @endphp
+            <div class="bar-row">
+                <div class="bar-label">{{ $rating }} ★</div>
+                <div class="bar-track">
+                    <div class="bar-fill" style="width: {{ $width }}%;"></div>
+                </div>
+                <div class="bar-count">{{ $count }} reviews</div>
             </div>
-        </div>
-        @else
-        <div class="no-data">
-            <p>No rating data available for this period.</p>
-        </div>
-        @endif
+        @endforeach
     </div>
 
 </body>
-
 </html>
