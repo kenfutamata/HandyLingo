@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 
 class AdminGenerateReportsController extends Controller
 {
@@ -124,7 +125,6 @@ class AdminGenerateReportsController extends Controller
         $selectedMonth = $request->input('month', Carbon::now()->format('Y-m'));
         $date = Carbon::parse($selectedMonth . '-01');
         $ratingsChartImageUrl = null;
-        $hasGD = extension_loaded('gd');
 
         try {
             $feedbackCount = Feedbacks::whereYear('created_at', $date->year)
@@ -134,39 +134,62 @@ class AdminGenerateReportsController extends Controller
                 ->whereYear('created_at', $date->year)
                 ->whereMonth('created_at', $date->month)->count();
 
-            if ($hasGD) {
-                $ratingCounts = Feedbacks::whereYear('created_at', $date->year)
-                    ->whereMonth('created_at', $date->month)
-                    ->select('rating', DB::raw('count(*) as count'))
-                    ->groupBy('rating')->pluck('count', 'rating');
+            // 1. Get the data
+            $ratingCounts = Feedbacks::whereYear('created_at', $date->year)
+                ->whereMonth('created_at', $date->month)
+                ->select('rating', DB::raw('count(*) as count'))
+                ->groupBy('rating')->pluck('count', 'rating');
 
-                if ($ratingCounts->isNotEmpty()) {
-                    $vals = [(int)$ratingCounts->get(1, 0), (int)$ratingCounts->get(2, 0), (int)$ratingCounts->get(3, 0), (int)$ratingCounts->get(4, 0), (int)$ratingCounts->get(5, 0)];
-                    $chartConfig = [
-                        'type' => 'bar',
-                        'data' => [
-                            'labels' => ['1★', '2★', '3★', '4★', '5★'],
-                            'datasets' => [['label' => 'Reviews', 'data' => $vals, 'backgroundColor' => '#6366f1']]
-                        ]
-                    ];
+            if ($ratingCounts->isNotEmpty()) {
+                $vals = [
+                    (int)$ratingCounts->get(1, 0),
+                    (int)$ratingCounts->get(2, 0),
+                    (int)$ratingCounts->get(3, 0),
+                    (int)$ratingCounts->get(4, 0),
+                    (int)$ratingCounts->get(5, 0)
+                ];
 
-                    $url = 'https://quickchart.io/chart?c=' . urlencode(json_encode($chartConfig));
-                    $imageData = @file_get_contents($url);
-                    if ($imageData) {
-                        $ratingsChartImageUrl = 'data:image/png;base64,' . base64_encode($imageData);
-                    }
+                $chartConfig = [
+                    'type' => 'bar',
+                    'data' => [
+                        'labels' => ['1★', '2★', '3★', '4★', '5★'],
+                        'datasets' => [[
+                            'label' => 'Reviews',
+                            'data' => $vals,
+                            'backgroundColor' => '#6366f1'
+                        ]]
+                    ],
+                    'options' => [
+                        'title' => ['display' => true, 'text' => 'User Satisfaction']
+                    ]
+                ];
+
+                $url = 'https://quickchart.io/chart?c=' . urlencode(json_encode($chartConfig));
+
+                // 2. Use Laravel Http client instead of file_get_contents
+                // We add withoutVerifying() in case Vercel has SSL CA issues
+                $response = Http::timeout(10)->withoutVerifying()->get($url);
+
+                if ($response->successful()) {
+                    $ratingsChartImageUrl = 'data:image/png;base64,' . base64_encode($response->body());
+                } else {
+                    Log::error('QuickChart API failed', [
+                        'status' => $response->status(),
+                        'body' => $response->body()
+                    ]);
                 }
             }
 
             return [
-                'selectedMonth' => $selectedMonth, // returns "YYYY-MM"
+                'selectedMonth' => $selectedMonth,
                 'feedbackCount' => $feedbackCount,
                 'userCount' => $userCount,
                 'ratingsChartImageUrl' => $ratingsChartImageUrl,
-                'hasGD' => $hasGD,
+                'hasGD' => extension_loaded('gd'),
                 'errorMessage' => null
             ];
         } catch (Exception $e) {
+            Log::error('Report Generation Error: ' . $e->getMessage());
             return ['errorMessage' => 'Server Error: ' . $e->getMessage()];
         }
     }
