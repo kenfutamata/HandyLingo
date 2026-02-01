@@ -48,3 +48,11 @@ Route::middleware('auth:admin')->group(function () {
     Route::get('/handylingoadmin/generate-reports', [AdminGenerateReportsController::class, 'index'])->name('admin.generate.reports');
     Route::get('/handylingoadmin/generate-reports/download', [AdminGenerateReportsController::class, 'download'])->name('admin.generate.reports.download');
 });
+
+
+Route::get('/php-check', function () {
+    return response()->json([
+        'gd_extension' => extension_loaded('gd'),
+        'php_version' => PHP_VERSION,
+    ]);
+});
