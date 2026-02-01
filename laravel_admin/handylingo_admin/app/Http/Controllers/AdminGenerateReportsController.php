@@ -21,10 +21,7 @@ class AdminGenerateReportsController extends Controller
         $notifications = $user->notifications ?? collect();
         $unreadNotifications = $user->unreadNotifications ?? collect();
 
-        // Standardize the month input
         $selectedMonth = $request->input('month', Carbon::now()->format('Y-m'));
-
-        // Always parse with '-01' to prevent end-of-month overflow bugs
         $date = Carbon::parse($selectedMonth . '-01');
 
         $ratingsChartData = null;
@@ -32,7 +29,6 @@ class AdminGenerateReportsController extends Controller
         $errorMessage = null;
 
         try {
-            // Feedback Data for Web Chart (Filtered by selected month)
             $ratingCounts = Feedbacks::whereYear('created_at', $date->year)
                 ->whereMonth('created_at', $date->month)
                 ->whereNotNull('rating')
@@ -53,7 +49,6 @@ class AdminGenerateReportsController extends Controller
                 ];
             }
 
-            // User Registration Data for Web Chart (Filtered by selected month)
             $userCounts = Users::where(DB::raw('LOWER(role)'), 'user')
                 ->whereYear('created_at', $date->year)
                 ->whereMonth('created_at', $date->month)
@@ -72,9 +67,6 @@ class AdminGenerateReportsController extends Controller
             $errorMessage = 'Error loading chart data.';
         }
 
-        // IMPORTANT: Make sure these counts match what the PDF will show
-        // If you want Total counts, remove the whereYear/whereMonth. 
-        // If you want Monthly counts, keep them.
         $feedbackCount = Feedbacks::whereYear('created_at', $date->year)
             ->whereMonth('created_at', $date->month)->count();
 
@@ -83,15 +75,8 @@ class AdminGenerateReportsController extends Controller
             ->whereMonth('created_at', $date->month)->count();
 
         return response()->view('admin.admin_generate_reports', compact(
-            'user',
-            'ratingsChartData',
-            'usersChartData',
-            'notifications',
-            'unreadNotifications',
-            'selectedMonth',
-            'errorMessage',
-            'feedbackCount',
-            'userCount'
+            'user', 'ratingsChartData', 'usersChartData', 'notifications', 
+            'unreadNotifications', 'selectedMonth', 'errorMessage', 'feedbackCount', 'userCount'
         ));
     }
 
@@ -108,13 +93,13 @@ class AdminGenerateReportsController extends Controller
         $fileName = 'Admin-Report-' . $date->format('F-Y') . '.pdf';
 
         $pdf = Pdf::loadView('admin.admin_download_report', array_merge(['user' => $user], $reportData));
-
         $pdf->setPaper('a4', 'portrait');
-
+        
         $pdf->setOptions([
             'isRemoteEnabled' => true,
             'isHtml5ParserEnabled' => true,
-            'enable_gd' => false, // This stops the "GD extension required" error
+            // If GD is still false, DomPDF will skip the image instead of crashing
+            'enable_gd' => extension_loaded('gd'), 
         ]);
 
         return $pdf->download($fileName);
@@ -134,21 +119,14 @@ class AdminGenerateReportsController extends Controller
                 ->whereYear('created_at', $date->year)
                 ->whereMonth('created_at', $date->month)->count();
 
-            // 1. Get the data
             $ratingCounts = Feedbacks::whereYear('created_at', $date->year)
                 ->whereMonth('created_at', $date->month)
                 ->select('rating', DB::raw('count(*) as count'))
                 ->groupBy('rating')->pluck('count', 'rating');
 
             if ($ratingCounts->isNotEmpty()) {
-                $vals = [
-                    (int)$ratingCounts->get(1, 0),
-                    (int)$ratingCounts->get(2, 0),
-                    (int)$ratingCounts->get(3, 0),
-                    (int)$ratingCounts->get(4, 0),
-                    (int)$ratingCounts->get(5, 0)
-                ];
-
+                $vals = [(int)$ratingCounts->get(1, 0), (int)$ratingCounts->get(2, 0), (int)$ratingCounts->get(3, 0), (int)$ratingCounts->get(4, 0), (int)$ratingCounts->get(5, 0)];
+                
                 $chartConfig = [
                     'type' => 'bar',
                     'data' => [
@@ -156,27 +134,20 @@ class AdminGenerateReportsController extends Controller
                         'datasets' => [[
                             'label' => 'Reviews',
                             'data' => $vals,
-                            'backgroundColor' => '#6366f1'
+                            'backgroundColor' => 'rgba(99, 102, 241, 1)'
                         ]]
                     ],
                     'options' => [
-                        'title' => ['display' => true, 'text' => 'User Satisfaction']
+                        'devicePixelRatio' => 2 // Higher quality
                     ]
                 ];
 
                 $url = 'https://quickchart.io/chart?c=' . urlencode(json_encode($chartConfig));
-
-                // 2. Use Laravel Http client instead of file_get_contents
-                // We add withoutVerifying() in case Vercel has SSL CA issues
-                $response = Http::timeout(10)->withoutVerifying()->get($url);
+                $response = Http::timeout(15)->withoutVerifying()->get($url);
 
                 if ($response->successful()) {
+                    // Back to Base64 PNG - this is standard for DomPDF
                     $ratingsChartImageUrl = 'data:image/png;base64,' . base64_encode($response->body());
-                } else {
-                    Log::error('QuickChart API failed', [
-                        'status' => $response->status(),
-                        'body' => $response->body()
-                    ]);
                 }
             }
 
@@ -185,11 +156,10 @@ class AdminGenerateReportsController extends Controller
                 'feedbackCount' => $feedbackCount,
                 'userCount' => $userCount,
                 'ratingsChartImageUrl' => $ratingsChartImageUrl,
-                'hasGD' => extension_loaded('gd'),
                 'errorMessage' => null
             ];
         } catch (Exception $e) {
-            Log::error('Report Generation Error: ' . $e->getMessage());
+            Log::error('Report Data Error: ' . $e->getMessage());
             return ['errorMessage' => 'Server Error: ' . $e->getMessage()];
         }
     }

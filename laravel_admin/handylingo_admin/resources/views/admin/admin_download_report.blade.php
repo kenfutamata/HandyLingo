@@ -113,8 +113,10 @@
         <h2 class="chart-title">User Satisfaction</h2>
         @if($ratingsChartImageUrl)
         <div style="text-align: center; margin-top: 20px;">
-            <!-- You MUST provide width and height attributes -->
-            <img src="{{ $ratingsChartImageUrl }}" width="500" height="250" style="width: 500px; height: 250px;">
+            <h3>User Satisfaction</h3>
+            <div style="width: 500px; height: auto; margin: 0 auto;">
+                {!! $ratingsChartImageUrl !!}
+            </div>
         </div>
         @else
         <div class="no-data">
