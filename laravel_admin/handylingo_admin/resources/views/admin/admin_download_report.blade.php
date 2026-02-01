@@ -116,7 +116,7 @@
             <!-- You MUST provide width and height attributes -->
             <img src="{{ $ratingsChartImageUrl }}" width="500" height="250" style="width: 500px; height: 250px;">
         </div>
-        @endif
+        @else
         <div class="no-data">
             <p>No rating data available for this period.</p>
         </div>
