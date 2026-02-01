@@ -104,17 +104,17 @@ class AdminGenerateReportsController extends Controller
             return redirect()->back()->with('error', $reportData['errorMessage']);
         }
 
-        // Use the validated month from the report data
         $date = Carbon::parse($reportData['selectedMonth'] . '-01');
         $fileName = 'Admin-Report-' . $date->format('F-Y') . '.pdf';
 
         $pdf = Pdf::loadView('admin.admin_download_report', array_merge(['user' => $user], $reportData));
 
         $pdf->setPaper('a4', 'portrait');
+
         $pdf->setOptions([
             'isRemoteEnabled' => true,
             'isHtml5ParserEnabled' => true,
-            'enable_gd' => extension_loaded('gd'),
+            'enable_gd' => false, // This stops the "GD extension required" error
         ]);
 
         return $pdf->download($fileName);
