@@ -5,10 +5,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'edit_profile.dart';
 import 'user_guide.dart';
-import 'help_pages.dart';
+import 'faq_page.dart';
+import 'feedback_page.dart';
+import 'terms_page.dart';
+import 'app_version_edit_page.dart';
 import 'start_using.dart';
-// NOTE: Assuming AppVersionEditPage exists or is a placeholder
- 
+
 import '../main.dart'; // This is where the Supabase client and themeIsLight are initialized
 
 class AccountPage extends StatefulWidget {
@@ -21,7 +23,7 @@ class AccountPage extends StatefulWidget {
 class _AccountPageState extends State<AccountPage> {
   Map<String, dynamic>? _userRow;
   bool _loading = true;
-  
+
   // Local Preference State
   bool _emailNotif = true;
   String _textSize = 'Medium';
@@ -41,8 +43,8 @@ class _AccountPageState extends State<AccountPage> {
 
   Future<void> _loadAllData() async {
     setState(() => _loading = true);
-    await _loadLocalPrefs(); 
-    await _loadProfile(); 
+    await _loadLocalPrefs();
+    await _loadProfile();
     setState(() => _loading = false);
   }
 
@@ -50,7 +52,7 @@ class _AccountPageState extends State<AccountPage> {
     try {
       final supabase = Supabase.instance.client;
       final userId = supabase.auth.currentUser?.id;
-      
+
       if (userId == null) return;
 
       final row = await supabase
@@ -70,17 +72,23 @@ class _AccountPageState extends State<AccountPage> {
               _primarySL = prefs['primary_sl'] ?? _primarySL;
               _whiteMode = prefs['white_mode'] ?? _whiteMode;
               _voice = prefs['voice'] ?? _voice;
-              _voiceSpeed = (prefs['voice_speed'] is num) ? (prefs['voice_speed'] as num).toDouble() : _voiceSpeed;
+              _voiceSpeed = (prefs['voice_speed'] is num)
+                  ? (prefs['voice_speed'] as num).toDouble()
+                  : _voiceSpeed;
               _avatarGender = prefs['avatar_gender'] ?? _avatarGender;
-              _signingSpeed = (prefs['signing_speed'] is num) ? (prefs['signing_speed'] as num).toDouble() : _signingSpeed;
+              _signingSpeed = (prefs['signing_speed'] is num)
+                  ? (prefs['signing_speed'] as num).toDouble()
+                  : _signingSpeed;
               _loop = prefs['sign_loop'] ?? _loop;
             }
           } catch (e) {
             print('ERROR parsing preferences: $e');
           }
         });
-        
-        try { themeIsLight.value = _whiteMode; } catch (_) {}
+
+        try {
+          themeIsLight.value = _whiteMode;
+        } catch (_) {}
       }
     } catch (e) {
       print('ERROR loading profile: $e');
@@ -110,8 +118,10 @@ class _AccountPageState extends State<AccountPage> {
     await sp.setString('text_size', _textSize);
     await sp.setString('primary_sl', _primarySL);
     await sp.setBool('white_mode', _whiteMode);
-    
-    try { themeIsLight.value = _whiteMode; } catch (_) {}
+
+    try {
+      themeIsLight.value = _whiteMode;
+    } catch (_) {}
 
     await sp.setString('voice', _voice);
     await sp.setDouble('voice_speed', _voiceSpeed);
@@ -120,30 +130,35 @@ class _AccountPageState extends State<AccountPage> {
     await sp.setBool('sign_loop', _loop);
 
     try {
-      final supabase = Supabase.instance.client; 
+      final supabase = Supabase.instance.client;
       final userId = supabase.auth.currentUser?.id;
       if (userId != null) {
-        await supabase.from('users').update({
-          'preferences': {
-            'email_notif': _emailNotif,
-            'text_size': _textSize,
-            'primary_sl': _primarySL,
-            'white_mode': _whiteMode,
-            'voice': _voice,
-            'voice_speed': _voiceSpeed,
-            'avatar_gender': _avatarGender,
-            'signing_speed': _signingSpeed,
-            'sign_loop': _loop,
-          },
-        }).eq('id', userId);
-        await _loadProfile(); 
+        await supabase
+            .from('users')
+            .update({
+              'preferences': {
+                'email_notif': _emailNotif,
+                'text_size': _textSize,
+                'primary_sl': _primarySL,
+                'white_mode': _whiteMode,
+                'voice': _voice,
+                'voice_speed': _voiceSpeed,
+                'avatar_gender': _avatarGender,
+                'signing_speed': _signingSpeed,
+                'sign_loop': _loop,
+              },
+            })
+            .eq('id', userId);
+        await _loadProfile();
       }
     } catch (e) {
       print('Warning: Failed to persist preferences to server: $e');
     }
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Preferences saved')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Preferences saved')));
     }
   }
 
@@ -162,8 +177,9 @@ class _AccountPageState extends State<AccountPage> {
 
   @override
   Widget build(BuildContext context) {
-    final String authenticatedEmail = Supabase.instance.client.auth.currentUser?.email ?? '';
-    
+    final String authenticatedEmail =
+        Supabase.instance.client.auth.currentUser?.email ?? '';
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -171,11 +187,16 @@ class _AccountPageState extends State<AccountPage> {
         backgroundColor: const Color(0xFFEAF8FB),
         leading: IconButton(
           icon: const Icon(Icons.info_outline, color: Colors.black87),
-          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const UserGuidePage())),
+          onPressed: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const UserGuidePage())),
         ),
         title: Text(
           'HandyLingo',
-          style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.black87),
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
         ),
       ),
       body: _loading
@@ -185,18 +206,27 @@ class _AccountPageState extends State<AccountPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('ACCOUNT', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const Text(
+                    'ACCOUNT',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
                       CircleAvatar(
                         radius: 36,
                         backgroundColor: Colors.white,
-                        backgroundImage: _userRow?['avatar_url'] != null ? NetworkImage(_userRow!['avatar_url']) : null,
+                        backgroundImage: _userRow?['avatar_url'] != null
+                            ? NetworkImage(_userRow!['avatar_url'])
+                            : null,
                         child: _userRow?['avatar_url'] == null
                             ? Icon(
-                                (_userRow?['avatar_gender'] ?? _avatarGender) == 'Female' ? Icons.female : Icons.male,
-                                size: 36, color: Colors.black54,
+                                (_userRow?['avatar_gender'] ?? _avatarGender) ==
+                                        'Female'
+                                    ? Icons.female
+                                    : Icons.male,
+                                size: 36,
+                                color: Colors.black54,
                               )
                             : null,
                       ),
@@ -205,15 +235,28 @@ class _AccountPageState extends State<AccountPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('${_userRow?['first_name'] ?? ''} ${_userRow?['last_name'] ?? ''}',
-                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            Text(
+                              '${_userRow?['first_name'] ?? ''} ${_userRow?['last_name'] ?? ''}',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                            Text(_userRow?['user_name'] ?? '', style: const TextStyle(color: Colors.black54)),
-                            Text(authenticatedEmail, style: const TextStyle(color: Colors.black54)),
+                            Text(
+                              _userRow?['user_name'] ?? '',
+                              style: const TextStyle(color: Colors.black54),
+                            ),
+                            Text(
+                              authenticatedEmail,
+                              style: const TextStyle(color: Colors.black54),
+                            ),
                           ],
                         ),
                       ),
-                      IconButton(onPressed: _goEditProfile, icon: const Icon(Icons.edit)),
+                      IconButton(
+                        onPressed: _goEditProfile,
+                        icon: const Icon(Icons.edit),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 20),
@@ -231,7 +274,10 @@ class _AccountPageState extends State<AccountPage> {
                   ),
 
                   const SizedBox(height: 18),
-                  const Text('Preferences', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Preferences',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 8),
                   Card(
                     child: Column(
@@ -246,8 +292,16 @@ class _AccountPageState extends State<AccountPage> {
                           trailing: DropdownButton<String>(
                             value: _textSize,
                             underline: const SizedBox(),
-                            items: ['Small', 'Medium', 'Large'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                            onChanged: (v) => setState(() => _textSize = v ?? 'Medium'),
+                            items: ['Small', 'Medium', 'Large']
+                                .map(
+                                  (s) => DropdownMenuItem(
+                                    value: s,
+                                    child: Text(s),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (v) =>
+                                setState(() => _textSize = v ?? 'Medium'),
                           ),
                         ),
                         ListTile(
@@ -255,16 +309,29 @@ class _AccountPageState extends State<AccountPage> {
                           trailing: DropdownButton<String>(
                             value: _primarySL,
                             underline: const SizedBox(),
-                            items: ['International', 'Filipino'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                            onChanged: (v) => setState(() => _primarySL = v ?? 'International'),
+                            items: ['International', 'Filipino']
+                                .map(
+                                  (s) => DropdownMenuItem(
+                                    value: s,
+                                    child: Text(s),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (v) => setState(
+                              () => _primarySL = v ?? 'International',
+                            ),
                           ),
                         ),
                         SwitchListTile(
                           value: _whiteMode,
-                          title: const Text('White Mode (on) / Dark Mode (off)'),
+                          title: const Text(
+                            'White Mode (on) / Dark Mode (off)',
+                          ),
                           onChanged: (v) {
                             setState(() => _whiteMode = v);
-                            try { themeIsLight.value = v; } catch (_) {}
+                            try {
+                              themeIsLight.value = v;
+                            } catch (_) {}
                           },
                         ),
                       ],
@@ -272,7 +339,10 @@ class _AccountPageState extends State<AccountPage> {
                   ),
 
                   const SizedBox(height: 16),
-                  const Text('Audio', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Audio',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 8),
                   Card(
                     child: Column(
@@ -282,8 +352,16 @@ class _AccountPageState extends State<AccountPage> {
                           trailing: DropdownButton<String>(
                             value: _voice,
                             underline: const SizedBox(),
-                            items: ['Male', 'Female'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                            onChanged: (v) => setState(() => _voice = v ?? 'Male'),
+                            items: ['Male', 'Female']
+                                .map(
+                                  (s) => DropdownMenuItem(
+                                    value: s,
+                                    child: Text(s),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (v) =>
+                                setState(() => _voice = v ?? 'Male'),
                           ),
                         ),
                         ListTile(
@@ -291,8 +369,16 @@ class _AccountPageState extends State<AccountPage> {
                           trailing: DropdownButton<double>(
                             value: _voiceSpeed,
                             underline: const SizedBox(),
-                            items: [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75].map((d) => DropdownMenuItem(value: d, child: Text(d.toStringAsFixed(2)))).toList(),
-                            onChanged: (v) => setState(() => _voiceSpeed = v ?? 1.0),
+                            items: [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75]
+                                .map(
+                                  (d) => DropdownMenuItem(
+                                    value: d,
+                                    child: Text(d.toStringAsFixed(2)),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (v) =>
+                                setState(() => _voiceSpeed = v ?? 1.0),
                           ),
                         ),
                       ],
@@ -300,7 +386,10 @@ class _AccountPageState extends State<AccountPage> {
                   ),
 
                   const SizedBox(height: 16),
-                  const Text('Sign Language', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Sign Language',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 8),
                   Card(
                     child: Column(
@@ -310,8 +399,16 @@ class _AccountPageState extends State<AccountPage> {
                           trailing: DropdownButton<String>(
                             value: _avatarGender,
                             underline: const SizedBox(),
-                            items: ['Male', 'Female'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                            onChanged: (v) => setState(() => _avatarGender = v ?? 'Male'),
+                            items: ['Male', 'Female']
+                                .map(
+                                  (s) => DropdownMenuItem(
+                                    value: s,
+                                    child: Text(s),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (v) =>
+                                setState(() => _avatarGender = v ?? 'Male'),
                           ),
                         ),
                         ListTile(
@@ -319,8 +416,16 @@ class _AccountPageState extends State<AccountPage> {
                           trailing: DropdownButton<double>(
                             value: _signingSpeed,
                             underline: const SizedBox(),
-                            items: [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75].map((d) => DropdownMenuItem(value: d, child: Text(d.toStringAsFixed(2)))).toList(),
-                            onChanged: (v) => setState(() => _signingSpeed = v ?? 1.0),
+                            items: [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75]
+                                .map(
+                                  (d) => DropdownMenuItem(
+                                    value: d,
+                                    child: Text(d.toStringAsFixed(2)),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (v) =>
+                                setState(() => _signingSpeed = v ?? 1.0),
                           ),
                         ),
                         SwitchListTile(
@@ -347,21 +452,57 @@ class _AccountPageState extends State<AccountPage> {
                   ),
 
                   const SizedBox(height: 16),
-                  const Text('Help', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Help',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 8),
                   Card(
                     child: Column(
                       children: [
-                        ListTile(title: const Text('Frequently asked questions'), trailing: const Icon(Icons.chevron_right), onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FaqPage()))),
-                        ListTile(title: const Text('Give feedback'), trailing: const Icon(Icons.chevron_right), onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FeedbackPage()))),
-                        ListTile(title: const Text('User Guide'), trailing: const Icon(Icons.chevron_right), onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const UserGuidePage()))),
-                        ListTile(title: const Text('Terms of use'), trailing: const Icon(Icons.chevron_right), onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TermsPage()))),
+                        ListTile(
+                          title: const Text('Frequently asked questions'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const FaqPage()),
+                          ),
+                        ),
+                        ListTile(
+                          title: const Text('Give feedback'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const FeedbackPage(),
+                            ),
+                          ),
+                        ),
+                        ListTile(
+                          title: const Text('User Guide'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const UserGuidePage(),
+                            ),
+                          ),
+                        ),
+                        ListTile(
+                          title: const Text('Terms of use'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const TermsPage(),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
 
                   const SizedBox(height: 16),
-                  const Text('App Version', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    'App Version',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 8),
                   Card(
                     child: ListTile(
@@ -370,10 +511,20 @@ class _AccountPageState extends State<AccountPage> {
                       onTap: () {
                         final role = _userRow?['role'] as String? ?? 'user';
                         if (role != 'admin') {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Only admins can change app version.')));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Only admins can change app version.',
+                              ),
+                            ),
+                          );
                           return;
                         }
-                        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AppVersionEditPage()));
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const AppVersionEditPage(),
+                          ),
+                        );
                       },
                     ),
                   ),
@@ -383,7 +534,10 @@ class _AccountPageState extends State<AccountPage> {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: _logout,
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        foregroundColor: Colors.white,
+                      ),
                       child: const Text('Log out'),
                     ),
                   ),
@@ -402,13 +556,33 @@ class _AccountPageState extends State<AccountPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 InkWell(
-                  onTap: () => Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const StartUsingPage())),
-                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.view_in_ar, size: 22), Text('SL', style: GoogleFonts.inter(fontWeight: FontWeight.w700))]),
+                  onTap: () => Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (_) => const StartUsingPage()),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.view_in_ar, size: 22),
+                      Text(
+                        'SL',
+                        style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
                 ),
-                Text('HANDYLINGO', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                Text(
+                  'HANDYLINGO',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                ),
                 InkWell(
-                  onTap: () {}, 
-                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.person, size: 22), Text('Account', style: GoogleFonts.inter(fontSize: 10))]),
+                  onTap: () {},
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.person, size: 22),
+                      Text('Account', style: GoogleFonts.inter(fontSize: 10)),
+                    ],
+                  ),
                 ),
               ],
             ),

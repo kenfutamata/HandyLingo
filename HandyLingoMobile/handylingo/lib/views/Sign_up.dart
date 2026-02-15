@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../controller/SignUpController.dart'; 
+import '../controller/SignUpController.dart';
 
 class Sign_Up extends ConsumerStatefulWidget {
   const Sign_Up({super.key});
@@ -36,14 +36,16 @@ class _Sign_UpState extends ConsumerState<Sign_Up> {
     final confirmPassword = _confirmPasswordController.text.trim();
 
     if (password != confirmPassword) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Passwords do not match!")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Passwords do not match!")));
       return;
     }
 
     // Call the controller
-    ref.read(signUpControllerProvider.notifier).signUp(
+    ref
+        .read(signUpControllerProvider.notifier)
+        .signUp(
           email: _emailController.text.trim(),
           password: password,
           firstName: _firstNameController.text.trim(),
@@ -60,12 +62,20 @@ class _Sign_UpState extends ConsumerState<Sign_Up> {
     ref.listen<AsyncValue<void>>(signUpControllerProvider, (prev, next) {
       next.whenOrNull(
         error: (error, _) => ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.toString()), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(error.toString()),
+            backgroundColor: Colors.red,
+          ),
         ),
         data: (_) {
           if (prev?.isLoading ?? false) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Account created successfully!")),
+              const SnackBar(
+                content: Text(
+                  "Please check your email to verify your account.",
+                ),
+                backgroundColor: Colors.green,
+              ),
             );
             // Navigate away
           }
@@ -98,8 +108,16 @@ class _Sign_UpState extends ConsumerState<Sign_Up> {
               _buildTextField("Last Name", _lastNameController),
               _buildTextField("Username", _usernameController),
               _buildTextField("Email", _emailController),
-              _buildTextField("Password", _passwordController, isPassword: true),
-              _buildTextField("Confirm Password", _confirmPasswordController, isPassword: true),
+              _buildTextField(
+                "Password",
+                _passwordController,
+                isPassword: true,
+              ),
+              _buildTextField(
+                "Confirm Password",
+                _confirmPasswordController,
+                isPassword: true,
+              ),
 
               const SizedBox(height: 16),
               Text(
@@ -138,7 +156,11 @@ class _Sign_UpState extends ConsumerState<Sign_Up> {
     );
   }
 
-  Widget _buildTextField(String hint, TextEditingController controller, {bool isPassword = false}) {
+  Widget _buildTextField(
+    String hint,
+    TextEditingController controller, {
+    bool isPassword = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: TextField(
@@ -148,7 +170,10 @@ class _Sign_UpState extends ConsumerState<Sign_Up> {
           hintText: hint,
           filled: true,
           fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 14,
+          ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(30),
             borderSide: BorderSide.none,
