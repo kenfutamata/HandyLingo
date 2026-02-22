@@ -2,8 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:camera/camera.dart';
+import 'dart:io';
+import 'dart:async';
+import 'package:path_provider/path_provider.dart';
 import 'about_page.dart';
 import 'account_page.dart';
+import 'sign_mt_translator_page.dart';
+import '../config/sign_mt_config.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 enum InputMode { signLanguage, text }
 
@@ -34,11 +40,114 @@ class _StartUsingPageState extends State<StartUsingPage>
   CameraController? _cameraController;
   bool _cameraInitializing = false;
 
+  // 2026-02-22: SAMPLE CAPTURE - variables for dataset collection
+  // List of user-provided phrases. (2026-02-22)
+  final List<String> _phrases = [
+    'Hello / Hi',
+    'Goodbye',
+    'Please',
+    'Thank you',
+    'You\'re welcome',
+    'Sorry',
+    'Excuse me',
+    'Nice to meet you',
+    'How are you?',
+    'Good / Bad',
+    'I / Me',
+    'You',
+    'He / Him',
+    'She / Her',
+    'We / Us',
+    'They / Them',
+    'This',
+    'That',
+    'Mother',
+    'Father',
+    'Mom / Dad',
+    'Sister',
+    'Brother',
+    'Grandma / Grandpa',
+    'Baby',
+    'Child',
+    'Family',
+    'Yes',
+    'No',
+    'Maybe',
+    'Help',
+    'Stop',
+    'Go',
+    'Come',
+    'Wait',
+    'Finish',
+    'Start',
+    'Work',
+    'School',
+    'Home',
+    'Today',
+    'Tomorrow',
+    'Yesterday',
+    'Now',
+    'Later',
+    'Morning',
+    'Afternoon',
+    'Night',
+    'Week',
+    'Month',
+    'Year',
+    'Happy',
+    'Sad',
+    'Angry',
+    'Tired',
+    'Sick',
+    'Hungry',
+    'Thirsty',
+    'Love',
+    'Like',
+    'Don\'t like',
+    'Who',
+    'What',
+    'Where',
+    'When',
+    'Why',
+    'How',
+    'Which',
+    'Eat',
+    'Drink',
+    'Water',
+    'Food',
+    'Coffee',
+    'Bathroom',
+    'Sleep',
+    'Understand',
+    'Don\'t understand',
+    'Again',
+    'Slow',
+    'Fast',
+    'Name',
+    'Spell',
+    'Sign (as in sign language)',
+  ];
+
+  // selected phrase for collecting samples (2026-02-22)
+  String _selectedPhrase = 'Hello / Hi';
+
+  // enable/disable sample collection mode (2026-02-22)
+  bool _collectMode = false;
+
+  // timer for periodic frame captures (2026-02-22)
+  Timer? _captureTimer;
+  int _captureCount = 0;
+
   // simple animation for the 3D placeholder
   late final AnimationController _animCtrl = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 900),
   )..repeat(reverse: true);
+
+  // Sign.MT webview controller (embedded in 3D/Text mode)
+  late final WebViewController _signWebController;
+  bool _signWebLoading = true;
+  String? _signWebError;
 
   @override
   void initState() {
@@ -47,6 +156,70 @@ class _StartUsingPageState extends State<StartUsingPage>
     _initSpeech();
     // initialize camera if permission available
     _initCamera();
+    // initialize embedded Sign.MT webview
+    _initializeSignWeb();
+  }
+
+  void _initializeSignWeb() {
+    try {
+      _signWebController = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onPageStarted: (url) {
+              setState(() => _signWebLoading = true);
+              debugPrint('[SignMT embedded] started: $url');
+            },
+            onPageFinished: (url) {
+              setState(() {
+                _signWebLoading = false;
+                _signWebError = null;
+              });
+              debugPrint('[SignMT embedded] finished: $url');
+              // Inject current text into translator
+              if (_textController.text.isNotEmpty) {
+                _injectTextToSignMt(_textController.text);
+              }
+            },
+            onWebResourceError: (err) {
+              setState(() {
+                _signWebLoading = false;
+                _signWebError = err.description;
+              });
+              debugPrint('[SignMT embedded] web error: ${err.description}');
+            },
+            onHttpError: (err) {
+              debugPrint(
+                '[SignMT embedded] http error: ${err.response?.statusCode}',
+              );
+            },
+          ),
+        )
+        ..loadRequest(Uri.parse('https://sign.mt'));
+    } catch (e) {
+      debugPrint('[SignMT embedded] init error: $e');
+      _signWebError = e.toString();
+      _signWebLoading = false;
+    }
+  }
+
+  Future<void> _injectTextToSignMt(String text) async {
+    try {
+      await _signWebController.runJavaScript('''
+        (function() {
+          const inputSelector = 'input[placeholder*="text"], textarea, [contenteditable="true"]';
+          const inputElement = document.querySelector(inputSelector);
+          if (inputElement) {
+            inputElement.value = "$text";
+            inputElement.textContent = "$text";
+            inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+            inputElement.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        })();
+      ''');
+    } catch (e) {
+      debugPrint('[SignMT embedded] inject error: $e');
+    }
   }
 
   Future<bool> _ensureCameraPermission() async {
@@ -106,16 +279,46 @@ class _StartUsingPageState extends State<StartUsingPage>
         }
       }
 
-      _cameraController?.dispose();
+      // Dispose any existing controller and wait for it to finish disposing
+      if (_cameraController != null) {
+        try {
+          await _cameraController!.dispose();
+        } catch (e) {
+          debugPrint('[Camera] dispose error: $e');
+        }
+        _cameraController = null;
+      }
+
       _cameraController = CameraController(
         desc,
         ResolutionPreset.medium,
         enableAudio: false,
       );
-      await _cameraController!.initialize();
-      setState(() {
-        _cameraInitializing = false;
-      });
+
+      try {
+        await _cameraController!.initialize();
+        if (!mounted) return;
+        setState(() {
+          _cameraInitializing = false;
+        });
+      } catch (e) {
+        // If initialize failed, dispose the controller and clear it so the UI
+        // doesn't reference a partially-initialized controller.
+        debugPrint('[Camera] initialize error: $e');
+        try {
+          await _cameraController?.dispose();
+        } catch (_) {}
+        _cameraController = null;
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Camera init error: $e')));
+        }
+        setState(() {
+          _cameraInitializing = false;
+        });
+        return;
+      }
     } catch (e) {
       debugPrint('[Camera] init error: $e');
       if (mounted) {
@@ -126,6 +329,68 @@ class _StartUsingPageState extends State<StartUsingPage>
       setState(() {
         _cameraInitializing = false;
       });
+    }
+  }
+
+  // 2026-02-22: SAMPLE CAPTURE helpers
+  Future<Directory> _getSamplesRoot() async {
+    // 2026-02-22: Store samples persistently in application documents directory
+    try {
+      final appDoc = await getApplicationDocumentsDirectory();
+      final root = Directory('${appDoc.path}/handylingo_samples');
+      if (!await root.exists()) await root.create(recursive: true);
+      return root;
+    } catch (e) {
+      // fallback to system temp if documents dir is unavailable
+      debugPrint('[Samples] could not get documents directory: $e');
+      final root = Directory('${Directory.systemTemp.path}/handylingo_samples');
+      if (!await root.exists()) await root.create(recursive: true);
+      return root;
+    }
+  }
+
+  Future<Directory> _getPhraseDir(String phrase) async {
+    final root = await _getSamplesRoot();
+    final slug = phrase.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+    final dir = Directory('${root.path}/$slug');
+    if (!await dir.exists()) await dir.create(recursive: true);
+    return dir;
+  }
+
+  void _startSampleCapture() {
+    // 2026-02-22: Start periodic capture while recording
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return;
+    }
+    _captureCount = 0;
+    _captureTimer?.cancel();
+    _captureTimer = Timer.periodic(const Duration(milliseconds: 350), (
+      t,
+    ) async {
+      try {
+        final xfile = await _cameraController!.takePicture();
+        final dir = await _getPhraseDir(_selectedPhrase);
+        final name = DateTime.now().toIso8601String().replaceAll(':', '-');
+        final outPath = '${dir.path}/$name.jpg';
+        await File(xfile.path).copy(outPath);
+        _captureCount++;
+        if (mounted) setState(() {});
+      } catch (e) {
+        debugPrint('[Camera] sample capture error: $e');
+      }
+    });
+  }
+
+  void _stopSampleCapture() async {
+    // 2026-02-22: Stop periodic capture and notify user
+    _captureTimer?.cancel();
+    _captureTimer = null;
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Saved $_captureCount samples for "$_selectedPhrase"'),
+        ),
+      );
     }
   }
 
@@ -192,7 +457,10 @@ class _StartUsingPageState extends State<StartUsingPage>
     _animCtrl.dispose();
     _textController.dispose();
     _speech.stop();
+    _captureTimer?.cancel();
     _cameraController?.dispose();
+    // WebViewController does not require explicit dispose, but clear state
+    // (no-op) kept for clarity
     super.dispose();
   }
 
@@ -210,6 +478,16 @@ class _StartUsingPageState extends State<StartUsingPage>
   }
 
   Future<void> _switchCamera() async {
+    // Dispose current controller first to avoid SurfaceTexture being abandoned
+    if (_cameraController != null) {
+      try {
+        await _cameraController!.dispose();
+      } catch (e) {
+        debugPrint('[Camera] dispose error during switch: $e');
+      }
+      _cameraController = null;
+    }
+
     setState(() => _frontCamera = !_frontCamera);
     await _initCamera();
   }
@@ -232,20 +510,39 @@ class _StartUsingPageState extends State<StartUsingPage>
   void _onTapRecord() {
     // short tap -> quick conversion
     setState(() => _isRecording = true);
-    _startProcessing();
-    // turn off recording indicator quickly
-    Future.delayed(const Duration(milliseconds: 800), () {
-      setState(() => _isRecording = false);
-    });
+
+    if (_collectMode) {
+      // 2026-02-22: quick capture session for taps (save ~1 second of frames)
+      _startSampleCapture();
+      Future.delayed(const Duration(seconds: 1), () {
+        _stopSampleCapture();
+        setState(() => _isRecording = false);
+      });
+    } else {
+      _startProcessing();
+      // turn off recording indicator quickly
+      Future.delayed(const Duration(milliseconds: 800), () {
+        setState(() => _isRecording = false);
+      });
+    }
   }
 
   void _onLongPressStart() {
     setState(() => _isRecording = true);
+    if (_collectMode) {
+      // 2026-02-22: begin continuous sample capture while holding
+      _startSampleCapture();
+    }
   }
 
   void _onLongPressEnd() {
     setState(() => _isRecording = false);
-    _startProcessing(withText: 'Spoken text recognized and converted.');
+    if (_collectMode) {
+      // 2026-02-22: stop collecting samples
+      _stopSampleCapture();
+    } else {
+      _startProcessing(withText: 'Spoken text recognized and converted.');
+    }
   }
 
   void _onSubmitText() {
@@ -253,6 +550,18 @@ class _StartUsingPageState extends State<StartUsingPage>
     if (t.isEmpty) return;
     FocusScope.of(context).unfocus();
     _startProcessing(withText: t);
+  }
+
+  void _openSignMtTranslator() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SignMtTranslatorPage(
+          initialText: _textController.text.isNotEmpty
+              ? _textController.text
+              : null,
+        ),
+      ),
+    );
   }
 
   @override
@@ -264,30 +573,31 @@ class _StartUsingPageState extends State<StartUsingPage>
       body: SafeArea(
         child: Column(
           children: [
-            // Top Row: About (left) + Mute (right)
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12.0,
-                vertical: 8.0,
+            // Top Row: About (left) + Mute (right) — hidden in 3D mode
+            if (_mode == InputMode.signLanguage)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12.0,
+                  vertical: 8.0,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.info_outline),
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const AboutPage()),
+                        );
+                      },
+                    ),
+                    IconButton(
+                      icon: Icon(_isMuted ? Icons.volume_off : Icons.volume_up),
+                      onPressed: _toggleMute,
+                    ),
+                  ],
+                ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.info_outline),
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const AboutPage()),
-                      );
-                    },
-                  ),
-                  IconButton(
-                    icon: Icon(_isMuted ? Icons.volume_off : Icons.volume_up),
-                    onPressed: _toggleMute,
-                  ),
-                ],
-              ),
-            ),
 
             // Camera / 3D area
             Expanded(
@@ -355,23 +665,48 @@ class _StartUsingPageState extends State<StartUsingPage>
                                       );
                                     }
                                   } else {
-                                    return ScaleTransition(
-                                      scale: Tween(
-                                        begin: 0.98,
-                                        end: 1.02,
-                                      ).animate(_animCtrl),
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: const [
-                                          Icon(
-                                            Icons
-                                                .person, // simple 3D placeholder
-                                            size: 140,
-                                            color: Colors.black54,
+                                    // 3D / Text mode: embed Sign.MT web app in place
+                                    if (_signWebError != null) {
+                                      return Center(
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            const Icon(
+                                              Icons.error_outline,
+                                              color: Colors.red,
+                                              size: 64,
+                                            ),
+                                            const SizedBox(height: 12),
+                                            Text(
+                                              'Failed to load translator',
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.titleLarge,
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(_signWebError ?? ''),
+                                            const SizedBox(height: 8),
+                                            ElevatedButton(
+                                              onPressed: () =>
+                                                  _signWebController.reload(),
+                                              child: const Text('Retry'),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }
+
+                                    return Stack(
+                                      children: [
+                                        WebViewWidget(
+                                          controller: _signWebController,
+                                        ),
+                                        if (_signWebLoading)
+                                          const Center(
+                                            child: CircularProgressIndicator(),
                                           ),
-                                        ],
-                                      ),
+                                      ],
                                     );
                                   }
                                 },
@@ -427,28 +762,107 @@ class _StartUsingPageState extends State<StartUsingPage>
 
                     const SizedBox(height: 10),
 
-                    // Thinking / result box
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 10,
-                        horizontal: 12,
+                    // 2026-02-22: Phrase selector + collect toggle (only in SL mode)
+                    if (_mode == InputMode.signLanguage)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6.0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8.0,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.black12),
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    isExpanded: true,
+                                    value: _selectedPhrase,
+                                    items: _phrases
+                                        .map(
+                                          (p) => DropdownMenuItem(
+                                            value: p,
+                                            child: Text(
+                                              p,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                                    onChanged: (v) {
+                                      if (v == null) return;
+                                      setState(() => _selectedPhrase = v);
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Column(
+                              children: [
+                                IconButton(
+                                  tooltip: _collectMode
+                                      ? 'Collecting: ON'
+                                      : 'Collect samples',
+                                  icon: Icon(
+                                    _collectMode
+                                        ? Icons.save
+                                        : Icons.play_circle_fill,
+                                    color: _collectMode
+                                        ? Colors.green
+                                        : Colors.black54,
+                                  ),
+                                  onPressed: () {
+                                    setState(
+                                      () => _collectMode = !_collectMode,
+                                    );
+                                    if (!_collectMode) {
+                                      // if turning off while capturing, stop
+                                      _stopSampleCapture();
+                                    }
+                                  },
+                                ),
+                                Text(
+                                  'Collect',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                      margin: const EdgeInsets.only(bottom: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.black12),
-                      ),
-                      child: Text(
-                        _isProcessing
-                            ? 'Thinking . . .'
-                            : (_resultText ?? 'Tap or Hold to Translate'),
-                        style: TextStyle(fontSize: 14, color: Colors.black54),
-                      ),
-                    ),
 
-                    const SizedBox(height: 6),
+                    // Thinking / result box — hidden in 3D mode
+                    if (_mode == InputMode.signLanguage)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 10,
+                          horizontal: 12,
+                        ),
+                        margin: const EdgeInsets.only(bottom: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.black12),
+                        ),
+                        child: Text(
+                          _isProcessing
+                              ? 'Thinking . . .'
+                              : (_resultText ?? 'Tap or Hold to Translate'),
+                          style: TextStyle(fontSize: 14, color: Colors.black54),
+                        ),
+                      ),
+
+                    if (_mode == InputMode.signLanguage)
+                      const SizedBox(height: 6),
 
                     // Bottom controls: mode switch (left), main action (center), account (right)
                     Padding(
@@ -477,92 +891,44 @@ class _StartUsingPageState extends State<StartUsingPage>
                             ),
                           ),
 
-                          // Center action
-                          Expanded(
-                            flex: 2,
-                            child: Center(
-                              child: _mode == InputMode.signLanguage
-                                  ? GestureDetector(
-                                      onTap: _onTapRecord,
-                                      onLongPress: _onLongPressStart,
-                                      onLongPressUp: _onLongPressEnd,
-                                      child: Container(
-                                        width: 86,
-                                        height: 86,
-                                        decoration: BoxDecoration(
-                                          color: _isRecording
-                                              ? Colors.redAccent
-                                              : Colors.white,
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: Colors.black54,
-                                            width: 2,
-                                          ),
-                                        ),
-                                        child: Center(
-                                          child: Icon(
-                                            Icons.fiber_manual_record,
-                                            color: _isRecording
-                                                ? Colors.white
-                                                : Colors.black87,
-                                            size: 28,
-                                          ),
-                                        ),
-                                      ),
-                                    )
-                                  : // Text mode: show a box or text button
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(24),
-                                        border: Border.all(
-                                          color: Colors.black12,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                            child: TextField(
-                                              controller: _textController,
-                                              decoration: const InputDecoration(
-                                                contentPadding:
-                                                    EdgeInsets.symmetric(
-                                                      horizontal: 12,
-                                                    ),
-                                                border: InputBorder.none,
-                                                hintText: 'Type here...',
-                                              ),
-                                              onSubmitted: (_) =>
-                                                  _onSubmitText(),
-                                            ),
-                                          ),
-                                          // Speech-to-text mic button
-                                          IconButton(
-                                            icon: Icon(
-                                              _isListening
-                                                  ? Icons.mic
-                                                  : Icons.mic_none,
-                                              color: _isListening
-                                                  ? Colors.red
-                                                  : Colors.black54,
-                                            ),
-                                            onPressed: () {
-                                              if (_isListening) {
-                                                _stopListening();
-                                              } else {
-                                                _startListening();
-                                              }
-                                            },
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.send),
-                                            onPressed: _onSubmitText,
-                                          ),
-                                        ],
+                          // Center action — text input only in Sign Language mode
+                          if (_mode == InputMode.signLanguage)
+                            Expanded(
+                              flex: 2,
+                              child: Center(
+                                child: GestureDetector(
+                                  onTap: _onTapRecord,
+                                  onLongPress: _onLongPressStart,
+                                  onLongPressUp: _onLongPressEnd,
+                                  child: Container(
+                                    width: 86,
+                                    height: 86,
+                                    decoration: BoxDecoration(
+                                      color: _isRecording
+                                          ? Colors.redAccent
+                                          : Colors.white,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.black54,
+                                        width: 2,
                                       ),
                                     ),
-                            ),
-                          ),
+                                    child: Center(
+                                      child: Icon(
+                                        Icons.fiber_manual_record,
+                                        color: _isRecording
+                                            ? Colors.white
+                                            : Colors.black87,
+                                        size: 28,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            // Text mode: show text input below the 3D area (this won't show in expanded camera area)
+                            const SizedBox.shrink(),
 
                           // Account button (right)
                           Expanded(
