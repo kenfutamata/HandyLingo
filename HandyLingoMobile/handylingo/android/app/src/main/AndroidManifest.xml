@@ -1,16 +1,24 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Required permissions for camera and microphone access -->
+    <!-- 1. REQUIRED PERMISSIONS -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <uses-permission android:name="android.permission.INTERNET"/>
+    
+    <!-- Required for saving the Dataset pictures to the device storage -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
+    <!-- requestLegacyExternalStorage allows the app to save images on Android 10/11 -->
     <application
         android:label="handylingo"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"
+        android:requestLegacyExternalStorage="true" 
         android:networkSecurityConfig="@xml/network_security_config">
+        
+        <!-- Hardware acceleration is vital for TFLite and WebView performance -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -19,25 +27,24 @@
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
-            android:windowSoftInputMode="adjustResize"
-            >
+            android:windowSoftInputMode="adjustResize">
+            
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
 
-            <!-- Keep the existing MAIN filter -->
+            <!-- Standard Launcher Intent -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
 
-            <!-- ADDED THIS: This must be INSIDE the <activity> tag -->
+            <!-- Supabase Login Deep Link -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <!-- Accept links starting with the scheme you defined in Supabase -->
                 <data android:scheme="com.example.handylingo" android:host="login-callback" />
             </intent-filter>
 
@@ -49,10 +56,16 @@
         
     </application>
 
+    <!-- 2. QUERIES: Required for Android 11+ to open web links and text processing -->
     <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
     </queries>
+    
 </manifest>

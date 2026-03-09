@@ -2,29 +2,41 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'views/Sign_in.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+// Import your views
+import 'views/Sign_in.dart';
 import 'views/welcome_dashboard.dart';
 
-// Simple global notifier used for theme state (avoids unresolved StateProvider error in some analyzer setups)
+// Global notifier for theme state
 final ValueNotifier<bool> themeIsLight = ValueNotifier<bool>(true);
 
+// Global navigator key for redirection from Auth listener
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
+  // 1. Crucial for Camera, WebView, and SharedPreferences
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment variables
-  await dotenv.load(fileName: ".env");
+  // 2. Load environment variables
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint("Warning: .env file not found. Ensure it exists in project root.");
+  }
 
-  // Initialize Supabase
+  // 3. Initialize Supabase
   await Supabase.initialize(
     url: dotenv.env['SUPABASE_URL'] ?? '',
     anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
   );
 
-  runApp(const ProviderScope(child: MyApp()));
+  runApp(
+    const ProviderScope(
+      child: MyApp(),
+    ),
+  );
 }
 
 class MyApp extends ConsumerStatefulWidget {
@@ -35,55 +47,56 @@ class MyApp extends ConsumerStatefulWidget {
 }
 
 class _MyAppState extends ConsumerState<MyApp> {
-  late final StreamSubscription<AuthState> _authSubscription;
+  StreamSubscription<AuthState>? _authSubscription;
   bool _redirecting = false;
 
   @override
   void initState() {
     super.initState();
 
-    // Load stored theme preference and update the global notifier
-    Future.microtask(() async {
-      try {
-        final sp = await SharedPreferences.getInstance();
-        final val = sp.getBool('white_mode') ?? true;
-        themeIsLight.value = val;
-      } catch (_) {}
-    });
+    // 4. Load stored theme preference
+    _loadTheme();
 
-    // 2. Listen for Auth State Changes
-    // This triggers automatically when the user clicks the "Verify" button in their email
-    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
-      data,
-    ) {
-      if (_redirecting) return;
-
+    // 5. Listen for Auth State Changes (Handles Magic Links/Email Verification)
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       final session = data.session;
       final event = data.event;
 
-      // When the user is signed in (via deep link or login)
+      if (_redirecting) return;
+
       if (event == AuthChangeEvent.signedIn && session != null) {
         _redirecting = true;
-
-        // Navigate to your Home/Dashboard screen
-        // Replace 'HomeView()' with your actual home widget
-        navigatorKey.currentState?.pushNamedAndRemoveUntil(
-          '/home',
-          (route) => false,
-        );
+        
+        // Use a small delay to ensure the Navigator is mounted
+        Future.delayed(Duration.zero, () {
+          navigatorKey.currentState?.pushNamedAndRemoveUntil(
+            '/home',
+            (route) => false,
+          );
+        });
       }
     });
   }
 
+  Future<void> _loadTheme() async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      final val = sp.getBool('white_mode') ?? true;
+      themeIsLight.value = val;
+    } catch (e) {
+      debugPrint("Theme load error: $e");
+    }
+  }
+
   @override
   void dispose() {
-    // 3. Clean up the subscription when the app is closed
-    _authSubscription.cancel();
+    _authSubscription?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Define Themes
     final lightTheme = ThemeData(
       colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
       scaffoldBackgroundColor: const Color(0xFFEAF8FB),
@@ -93,9 +106,6 @@ class _MyAppState extends ConsumerState<MyApp> {
         iconTheme: IconThemeData(color: Colors.black87),
       ),
       useMaterial3: true,
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(foregroundColor: Colors.white),
-      ),
     );
 
     final darkTheme = ThemeData(
@@ -106,9 +116,6 @@ class _MyAppState extends ConsumerState<MyApp> {
         elevation: 0,
       ),
       useMaterial3: true,
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(foregroundColor: Colors.white),
-      ),
     );
 
     return ValueListenableBuilder<bool>(
@@ -117,16 +124,13 @@ class _MyAppState extends ConsumerState<MyApp> {
         return MaterialApp(
           title: 'HandyLingo',
           debugShowCheckedModeBanner: false,
-          // 4. Attach the navigator key
           navigatorKey: navigatorKey,
           theme: lightTheme,
           darkTheme: darkTheme,
           themeMode: isLight ? ThemeMode.light : ThemeMode.dark,
-          // 5. Define your routes
           initialRoute: '/',
           routes: {
-            '/': (context) => const Sign_in(), //Sign_inPage() bypassed
-            // Define your home route here
+            '/': (context) => const Sign_in(),
             '/home': (context) => const WelcomeDashboard(),
           },
         );
