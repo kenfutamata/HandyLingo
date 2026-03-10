@@ -7,7 +7,6 @@ import 'dart:async';
 import 'package:path_provider/path_provider.dart';
 import 'package:tflite_v2/tflite_v2.dart'; // AI Model Import
 import 'package:webview_flutter/webview_flutter.dart';
-
 import 'about_page.dart';
 import 'account_page.dart';
 import 'sign_mt_translator_page.dart';
