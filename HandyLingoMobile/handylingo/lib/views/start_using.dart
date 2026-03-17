@@ -7,11 +7,12 @@ import 'dart:async';
 import 'package:path_provider/path_provider.dart';
 import 'package:tflite_v2/tflite_v2.dart'; // AI Model Import
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:video_thumbnail/video_thumbnail.dart' as vt;
+import 'package:video_player/video_player.dart';
 import 'about_page.dart';
 import 'account_page.dart';
 import 'sign_mt_translator_page.dart';
 import 'package:google_fonts/google_fonts.dart';
-
 
 enum InputMode { signLanguage, text }
 
@@ -26,32 +27,23 @@ class _StartUsingPageState extends State<StartUsingPage>
     with SingleTickerProviderStateMixin {
   InputMode _mode = InputMode.signLanguage;
   bool _isMuted = false;
-  bool _isProcessing = false;
   bool _frontCamera = true;
   final TextEditingController _textController = TextEditingController();
 
   // --- AI TRANSLATION STATE ---
   bool _isModelLoaded = false;
-  bool _isTranslating = false; // Live detection toggle
-  String _currentSign = "..."; // Currently detected word
+  bool _isRecording = false;
+  String _videoPath = '';
   String _accumulatedSentence = ""; // Sentence built by user
 
   // Speech to text (preserved)
   late stt.SpeechToText _speech;
   bool _speechEnabled = false;
-  bool _isListening = false;
 
   // Camera
   List<CameraDescription> _cameras = [];
   CameraController? _cameraController;
   bool _cameraInitializing = false;
-
-  // Phrase list & Collection (preserved)
-  final List<String> _phrases = ['Hello / Hi', 'Goodbye', 'Please', 'Thank you', 'Sorry', 'You', 'Bad', 'Ask', 'Eat', 'Drink', 'Water', 'Bathroom', 'Understand'];
-  String _selectedPhrase = 'Hello / Hi';
-  bool _collectMode = false;
-  Timer? _captureTimer;
-  int _captureCount = 0;
 
   // WebView (Text to Sign) Controller (Preserved)
   late final WebViewController _signWebController;
@@ -70,65 +62,78 @@ class _StartUsingPageState extends State<StartUsingPage>
 
   // --- 1. AI TRANSLATION LOGIC ---
   Future<void> _loadModel() async {
+    print("Starting to load model");
     try {
-      await Tflite.loadModel(
+      String? result = await Tflite.loadModel(
         model: "assets/model_unquant.tflite",
         labels: "assets/labels.txt",
       );
-      if (mounted) setState(() => _isModelLoaded = true);
+      print("Load model returned: $result");
+      if (result == null) {
+        print("Model loaded successfully");
+        if (mounted) setState(() => _isModelLoaded = true);
+      } else {
+        print("Model load failed: $result");
+      }
     } catch (e) {
-      debugPrint("AI Model Load Error: $e");
+      print("AI Model Load Error: $e");
     }
   }
 
-  void _processCameraImage(CameraImage image) async {
-    if (!_isTranslating || !_isModelLoaded || _isProcessing || _collectMode) return;
-
-    _isProcessing = true;
-    try {
-      var recognitions = await Tflite.runModelOnFrame(
-        bytesList: image.planes.map((plane) => plane.bytes).toList(),
-        imageHeight: image.height,
-        imageWidth: image.width,
-        imageMean: 127.5, // Fixed normalization for ASK/YOU/BAD
+  Future<void> _processVideo() async {
+    if (!_isModelLoaded) {
+      print("Model not loaded, skipping processing");
+      return;
+    }
+    final thumbnailPath = await vt.VideoThumbnail.thumbnailFile(
+      video: _videoPath,
+      thumbnailPath: (await getTemporaryDirectory()).path,
+      imageFormat: vt.ImageFormat.PNG,
+      maxHeight: 224, // Assuming model input size
+      quality: 75,
+      timeMs: 2000, // Get thumbnail from 2 seconds into the video
+    );
+    print("Thumbnail path: $thumbnailPath");
+    if (thumbnailPath != null) {
+      var recognitions = await Tflite.runModelOnImage(
+        path: thumbnailPath,
+        imageMean: 127.5,
         imageStd: 127.5,
-        rotation: 90,
-        numResults: 1,
-        threshold: 0.4,
+        numResults: 5,
+        threshold: 0.1,
       );
-
+      print("Recognitions: $recognitions");
       if (recognitions != null && recognitions.isNotEmpty) {
         String label = recognitions[0]['label'].toString().toUpperCase();
-        double conf = (recognitions[0]['confidence'] as double) * 100;
-        if (mounted) setState(() => _currentSign = "$label (${conf.toStringAsFixed(0)}%)");
+        print("Detected label: $label");
+        setState(() => _accumulatedSentence = label);
       } else {
-        if (mounted) setState(() => _currentSign = "...");
+        print("No recognitions");
       }
-    } finally {
-      _isProcessing = false;
-    }
-  }
-
-  void _toggleLiveAI() {
-    if (_isTranslating) {
-      _cameraController?.stopImageStream();
-      setState(() => _currentSign = "...");
     } else {
-      _cameraController?.startImageStream(_processCameraImage);
+      print("Thumbnail not generated");
     }
-    setState(() => _isTranslating = !_isTranslating);
+    // Clean up
+    await File(_videoPath).delete();
+    if (thumbnailPath != null) await File(thumbnailPath).delete();
   }
 
-  void _addWordToSentence() {
-    if (_currentSign == "..." || _currentSign.isEmpty) return;
-    String word = _currentSign.split(" ")[0];
-    setState(() => _accumulatedSentence += "$word ");
+  void _startVideoRecording() async {
+    if (_isRecording) return;
+    setState(() => _isRecording = true);
+    await _cameraController!.startVideoRecording();
+    // Record for 5 seconds
+    Timer(const Duration(seconds: 5), () async {
+      XFile videoFile = await _cameraController!.stopVideoRecording();
+      _videoPath = videoFile.path;
+      setState(() => _isRecording = false);
+      await _processVideo();
+    });
   }
 
   void _clearSentence() {
     setState(() {
       _accumulatedSentence = "";
-      _currentSign = "...";
     });
   }
 
@@ -137,24 +142,51 @@ class _StartUsingPageState extends State<StartUsingPage>
     try {
       _signWebController = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setNavigationDelegate(NavigationDelegate(
+        ..setNavigationDelegate(
+          NavigationDelegate(
             onPageStarted: (url) => setState(() => _signWebLoading = true),
-            onPageFinished: (url) => setState(() => _signWebLoading = false),
-            onWebResourceError: (err) => setState(() => _signWebError = err.description),
-        ))
+            onPageFinished: (url) {
+              setState(() => _signWebLoading = false);
+              // Hide the top language header (English <=> American) in Text→Sign mode.
+              _signWebController.runJavaScript(r"""
+                (() => {
+                  const shouldHide = (el) => {
+                    const txt = (el.innerText || '').trim();
+                    if (!txt) return;
+                    // Common header labels on sign.mt
+                    if (/English.*American/i.test(txt)) {
+                      el.style.display = 'none';
+                    }
+                  };
+                  document.querySelectorAll('header,nav,div,span').forEach(shouldHide);
+                })();
+              """);
+            },
+            onWebResourceError: (err) =>
+                setState(() => _signWebError = err.description),
+          ),
+        )
         ..loadRequest(Uri.parse('https://sign.mt'));
-    } catch (e) { debugPrint('[SignMT] init error: $e'); }
+    } catch (e) {
+      debugPrint('[SignMT] init error: $e');
+    }
   }
 
   Future<void> _initCamera() async {
     setState(() => _cameraInitializing = true);
     _cameras = await availableCameras();
     CameraDescription desc = _cameras.firstWhere(
-      (c) => c.lensDirection == (_frontCamera ? CameraLensDirection.front : CameraLensDirection.back),
+      (c) =>
+          c.lensDirection ==
+          (_frontCamera ? CameraLensDirection.front : CameraLensDirection.back),
       orElse: () => _cameras.first,
     );
     if (_cameraController != null) await _cameraController!.dispose();
-    _cameraController = CameraController(desc, ResolutionPreset.medium, enableAudio: false);
+    _cameraController = CameraController(
+      desc,
+      ResolutionPreset.medium,
+      enableAudio: false,
+    );
     await _cameraController!.initialize();
     if (mounted) setState(() => _cameraInitializing = false);
   }
@@ -194,7 +226,8 @@ class _StartUsingPageState extends State<StartUsingPage>
                   children: [
                     _buildMainMediaArea(),
                     const SizedBox(height: 10),
-                    if (_mode == InputMode.signLanguage) _buildSignToTextControls(),
+                    if (_mode == InputMode.signLanguage)
+                      _buildSignToTextControls(),
                     _buildBottomNavigation(theme),
                   ],
                 ),
@@ -212,8 +245,17 @@ class _StartUsingPageState extends State<StartUsingPage>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          IconButton(icon: const Icon(Icons.info_outline), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutPage()))),
-          IconButton(icon: Icon(_isMuted ? Icons.volume_off : Icons.volume_up), onPressed: () => setState(() => _isMuted = !_isMuted)),
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AboutPage()),
+            ),
+          ),
+          IconButton(
+            icon: Icon(_isMuted ? Icons.volume_off : Icons.volume_up),
+            onPressed: () => setState(() => _isMuted = !_isMuted),
+          ),
         ],
       ),
     );
@@ -225,30 +267,57 @@ class _StartUsingPageState extends State<StartUsingPage>
         children: [
           Container(
             width: double.infinity,
-            decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.circular(12),
+            ),
             clipBehavior: Clip.antiAlias,
-            child: _mode == InputMode.signLanguage 
-              ? (_cameraController?.value.isInitialized ?? false 
-                  ? Stack(children: [
-                      CameraPreview(_cameraController!),
-                      Positioned(top: 15, right: 15, child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
-                        child: Text("AI SEEING: $_currentSign", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      )),
-                    ])
-                  : const Center(child: CircularProgressIndicator()))
-              : WebViewWidget(controller: _signWebController),
+            child: _mode == InputMode.signLanguage
+                ? (_cameraController?.value.isInitialized ?? false
+                      ? Stack(
+                          children: [
+                            CameraPreview(_cameraController!),
+                            if (_isRecording)
+                              Positioned(
+                                top: 15,
+                                right: 15,
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.withOpacity(0.8),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Text(
+                                    "RECORDING...",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        )
+                      : const Center(child: CircularProgressIndicator()))
+                : WebViewWidget(controller: _signWebController),
           ),
           if (_mode == InputMode.signLanguage)
-            Positioned(bottom: 12, left: 0, right: 0, child: Center(
-              child: ActionChip(
-                backgroundColor: Colors.white70,
-                label: Text(_frontCamera ? 'Switch to Rear' : 'Switch to Front'),
-                onPressed: _switchCamera,
+            Positioned(
+              bottom: 12,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: ActionChip(
+                  backgroundColor: Colors.white70,
+                  label: Text(
+                    _frontCamera ? 'Switch to Rear' : 'Switch to Front',
+                  ),
+                  onPressed: _switchCamera,
+                ),
               ),
-            )),
-          if (_mode == InputMode.text && _signWebLoading) const Center(child: CircularProgressIndicator()),
+            ),
+          if (_mode == InputMode.text && _signWebLoading)
+            const Center(child: CircularProgressIndicator()),
         ],
       ),
     );
@@ -259,21 +328,49 @@ class _StartUsingPageState extends State<StartUsingPage>
       children: [
         // Sentence Result Area
         Container(
-          width: double.infinity, padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.black12)),
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.black12),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text("YOUR SENTENCE:", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-                  GestureDetector(onTap: _clearSentence, child: const Icon(Icons.delete_outline, size: 18, color: Colors.red)),
+                  const Text(
+                    "YOUR SENTENCE:",
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blueGrey,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: _clearSentence,
+                    child: const Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                      color: Colors.red,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 4),
-              Text(_accumulatedSentence.isEmpty ? "Translation will appear here..." : _accumulatedSentence, 
-                   style: TextStyle(fontSize: 18, color: _accumulatedSentence.isEmpty ? Colors.grey : Colors.black87)),
+              Text(
+                _accumulatedSentence.isEmpty
+                    ? "Translation will appear here..."
+                    : _accumulatedSentence,
+                style: TextStyle(
+                  fontSize: 18,
+                  color: _accumulatedSentence.isEmpty
+                      ? Colors.grey
+                      : Colors.black87,
+                ),
+              ),
             ],
           ),
         ),
@@ -281,18 +378,18 @@ class _StartUsingPageState extends State<StartUsingPage>
         // Action Buttons
         Row(
           children: [
-            Expanded(child: ElevatedButton.icon(
-              onPressed: _toggleLiveAI, 
-              icon: Icon(_isTranslating ? Icons.pause : Icons.play_arrow),
-              label: Text(_isTranslating ? "PAUSE AI" : "START LIVE AI"),
-              style: ElevatedButton.styleFrom(backgroundColor: _isTranslating ? Colors.orange : Colors.green, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
-            )),
-            const SizedBox(width: 8),
-            Expanded(child: ElevatedButton.icon(
-              onPressed: _addWordToSentence, 
-              icon: const Icon(Icons.add), label: const Text("ADD WORD"),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
-            )),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _startVideoRecording,
+                icon: const Icon(Icons.videocam),
+                label: const Text("RECORD VIDEO"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _isRecording ? Colors.red : Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
           ],
         ),
       ],
@@ -305,16 +402,40 @@ class _StartUsingPageState extends State<StartUsingPage>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          TextButton(onPressed: () {
-            if (_isTranslating) _toggleLiveAI(); // Stop AI when switching
-            setState(() => _mode = _mode == InputMode.signLanguage ? InputMode.text : InputMode.signLanguage);
-          }, child: Column(children: [Text(_mode == InputMode.signLanguage ? 'SL' : '3D', style: theme.textTheme.labelLarge), const Text('Switch')])),
-           Text(
-                  'HANDYLINGO',
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+          TextButton(
+            onPressed: () {
+              if (_isRecording)
+                setState(
+                  () => _isRecording = false,
+                ); // Stop recording when switching
+              setState(
+                () => _mode = _mode == InputMode.signLanguage
+                    ? InputMode.text
+                    : InputMode.signLanguage,
+              );
+            },
+            child: Column(
+              children: [
+                Text(
+                  _mode == InputMode.signLanguage ? 'SL' : '3D',
+                  style: theme.textTheme.labelLarge,
                 ),
+                const Text('Switch'),
+              ],
+            ),
+          ),
+          Text(
+            'HANDYLINGO',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+          ),
 
-          IconButton(icon: const Icon(Icons.person), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccountPage()))),
+          IconButton(
+            icon: const Icon(Icons.person),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AccountPage()),
+            ),
+          ),
         ],
       ),
     );

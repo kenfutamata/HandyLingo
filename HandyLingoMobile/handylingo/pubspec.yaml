@@ -52,6 +52,8 @@ dependencies:
   http: ^1.1.0
   tflite_flutter: ^0.10.1
   tflite_v2: ^1.0.0
+  video_thumbnail: ^0.5.3
+  video_player: ^2.8.2
   # Add these two if the error persists after a cold restart:
   webview_flutter_android: ^3.15.0
   webview_flutter_wkwebview: ^3.11.0

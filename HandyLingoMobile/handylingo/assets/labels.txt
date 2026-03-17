@@ -1,3 +1,7 @@
-0 You
-1 Ask
-2 Bad
+Thank you
+Yes
+Okay
+I love you
+No
+Hello
+Please
