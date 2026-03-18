@@ -33,19 +33,20 @@ class _StartUsingPageState extends State<StartUsingPage>
   // --- AI TRANSLATION STATE ---
   bool _isModelLoaded = false;
   bool _isRecording = false;
+  bool _isProcessing = false; 
   String _videoPath = '';
-  String _accumulatedSentence = ""; // Sentence built by user
+  String _accumulatedSentence = ""; 
 
-  // Speech to text (preserved)
+  // Speech to text
   late stt.SpeechToText _speech;
   bool _speechEnabled = false;
 
   // Camera
-  List<CameraDescription> _cameras = [];
+  List<CameraDescription> _cameras =[];
   CameraController? _cameraController;
   bool _cameraInitializing = false;
 
-  // WebView (Text to Sign) Controller (Preserved)
+  // WebView Controller
   late final WebViewController _signWebController;
   bool _signWebLoading = true;
   String? _signWebError;
@@ -56,79 +57,121 @@ class _StartUsingPageState extends State<StartUsingPage>
     _speech = stt.SpeechToText();
     _initSpeech();
     _initCamera();
-    _loadModel(); // Load AI model on start
+    _loadModel(); 
     _initializeSignWeb();
   }
 
-  // --- 1. AI TRANSLATION LOGIC ---
+  // --- 1. UPDATED AI TRANSLATION LOGIC ---
   Future<void> _loadModel() async {
-    print("Starting to load model");
     try {
       String? result = await Tflite.loadModel(
         model: "assets/model_unquant.tflite",
         labels: "assets/labels.txt",
       );
-      print("Load model returned: $result");
-      if (result == null) {
-        print("Model loaded successfully");
+      
+      if (result != null && result.toLowerCase().contains("success")) {
         if (mounted) setState(() => _isModelLoaded = true);
       } else {
-        print("Model load failed: $result");
+        if (mounted) setState(() => _accumulatedSentence = "[Error: Model Load Failed - $result]");
       }
     } catch (e) {
-      print("AI Model Load Error: $e");
+      if (mounted) setState(() => _accumulatedSentence = "[Error: Model Exception - $e]");
     }
   }
 
   Future<void> _processVideo() async {
     if (!_isModelLoaded) {
-      print("Model not loaded, skipping processing");
+      setState(() {
+        _accumulatedSentence = "[Error: Model not loaded]";
+        _isProcessing = false;
+      });
       return;
     }
-    final thumbnailPath = await vt.VideoThumbnail.thumbnailFile(
-      video: _videoPath,
-      thumbnailPath: (await getTemporaryDirectory()).path,
-      imageFormat: vt.ImageFormat.PNG,
-      maxHeight: 224, // Assuming model input size
-      quality: 75,
-      timeMs: 2000, // Get thumbnail from 2 seconds into the video
-    );
-    print("Thumbnail path: $thumbnailPath");
-    if (thumbnailPath != null) {
-      var recognitions = await Tflite.runModelOnImage(
-        path: thumbnailPath,
-        imageMean: 127.5,
-        imageStd: 127.5,
-        numResults: 5,
-        threshold: 0.1,
+
+    try {
+      final tempDir = await getTemporaryDirectory();
+      
+      // FIX 2: Use JPEG instead of PNG. TFLite handles JPEG much better.
+      // FIX 3: Set a maxWidth to prevent Out-Of-Memory (OOM) native crashes.
+      final thumbnailPath = await vt.VideoThumbnail.thumbnailFile(
+        video: _videoPath,
+        thumbnailPath: tempDir.path,
+        imageFormat: vt.ImageFormat.JPEG, 
+        maxWidth: 400, // Safe size to prevent memory crashes
+        quality: 80,
+        timeMs: 500, // 500ms guarantees the frame exists even if video is short
       );
-      print("Recognitions: $recognitions");
-      if (recognitions != null && recognitions.isNotEmpty) {
-        String label = recognitions[0]['label'].toString().toUpperCase();
-        print("Detected label: $label");
-        setState(() => _accumulatedSentence = label);
+      
+      if (thumbnailPath != null) {
+        var recognitions = await Tflite.runModelOnImage(
+          path: thumbnailPath,
+          imageMean: 127.5,
+          imageStd: 127.5,
+          numResults: 2,
+          threshold: 0.1, 
+        );
+        
+        if (recognitions != null && recognitions.isNotEmpty) {
+          String rawLabel = recognitions[0]['label'].toString();
+          String cleanLabel = rawLabel.replaceAll(RegExp(r'^[0-9]+\s'), '').toUpperCase();
+          
+          setState(() {
+            if (_accumulatedSentence.isEmpty || _accumulatedSentence.startsWith("[")) {
+              _accumulatedSentence = cleanLabel;
+            } else {
+              _accumulatedSentence += " $cleanLabel";
+            }
+          });
+        } else {
+          setState(() => _accumulatedSentence = "[No sign recognized]");
+        }
+        
+        await File(thumbnailPath).delete();
       } else {
-        print("No recognitions");
+        setState(() => _accumulatedSentence = "[Error: Failed to extract frame]");
       }
-    } else {
-      print("Thumbnail not generated");
+    } catch (e) {
+      setState(() => _accumulatedSentence = "[Error running model: $e]");
+    } finally {
+      // Cleanup video securely
+      if (_videoPath.isNotEmpty) {
+        try { await File(_videoPath).delete(); } catch (_) {}
+      }
+      setState(() => _isProcessing = false);
     }
-    // Clean up
-    await File(_videoPath).delete();
-    if (thumbnailPath != null) await File(thumbnailPath).delete();
   }
 
   void _startVideoRecording() async {
-    if (_isRecording) return;
-    setState(() => _isRecording = true);
-    await _cameraController!.startVideoRecording();
-    // Record for 5 seconds
-    Timer(const Duration(seconds: 5), () async {
-      XFile videoFile = await _cameraController!.stopVideoRecording();
-      _videoPath = videoFile.path;
-      setState(() => _isRecording = false);
-      await _processVideo();
-    });
+    if (_isRecording || _isProcessing) return; 
+
+    try {
+      setState(() => _isRecording = true);
+      await _cameraController!.startVideoRecording();
+      
+      Timer(const Duration(seconds: 5), () async {
+        if (!_cameraController!.value.isRecordingVideo) return;
+        
+        XFile videoFile = await _cameraController!.stopVideoRecording();
+        _videoPath = videoFile.path;
+        
+        setState(() {
+          _isRecording = false;
+          _isProcessing = true;
+        });
+        
+        // FIX 1: Wait 500 milliseconds for the OS to completely release the MP4 file!
+        // Without this, video_thumbnail crashes natively trying to read a locked file.
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        await _processVideo();
+      });
+    } catch (e) {
+      setState(() {
+        _accumulatedSentence = "[Camera Error: $e]";
+        _isRecording = false;
+        _isProcessing = false;
+      });
+    }
   }
 
   void _clearSentence() {
@@ -137,7 +180,7 @@ class _StartUsingPageState extends State<StartUsingPage>
     });
   }
 
-  // --- 2. CAMERA & WEBVIEW LOGIC (PRESERVED) ---
+  // --- 2. CAMERA & WEBVIEW LOGIC ---
   void _initializeSignWeb() {
     try {
       _signWebController = WebViewController()
@@ -147,13 +190,11 @@ class _StartUsingPageState extends State<StartUsingPage>
             onPageStarted: (url) => setState(() => _signWebLoading = true),
             onPageFinished: (url) {
               setState(() => _signWebLoading = false);
-              // Hide the top language header (English <=> American) in Text→Sign mode.
               _signWebController.runJavaScript(r"""
                 (() => {
                   const shouldHide = (el) => {
                     const txt = (el.innerText || '').trim();
                     if (!txt) return;
-                    // Common header labels on sign.mt
                     if (/English.*American/i.test(txt)) {
                       el.style.display = 'none';
                     }
@@ -174,20 +215,38 @@ class _StartUsingPageState extends State<StartUsingPage>
 
   Future<void> _initCamera() async {
     setState(() => _cameraInitializing = true);
+
+    final oldController = _cameraController;
+    if (oldController != null) {
+      _cameraController = null;
+      await oldController.dispose();
+    }
+
     _cameras = await availableCameras();
+    if (_cameras.isEmpty) {
+      if (mounted) setState(() => _cameraInitializing = false);
+      return;
+    }
+
     CameraDescription desc = _cameras.firstWhere(
       (c) =>
           c.lensDirection ==
           (_frontCamera ? CameraLensDirection.front : CameraLensDirection.back),
       orElse: () => _cameras.first,
     );
-    if (_cameraController != null) await _cameraController!.dispose();
+    
     _cameraController = CameraController(
       desc,
       ResolutionPreset.medium,
       enableAudio: false,
     );
-    await _cameraController!.initialize();
+
+    try {
+      await _cameraController!.initialize();
+    } catch (e) {
+      print("Camera initialization error: $e");
+    }
+    
     if (mounted) setState(() => _cameraInitializing = false);
   }
 
@@ -217,13 +276,13 @@ class _StartUsingPageState extends State<StartUsingPage>
       backgroundColor: const Color(0xFFEAF8FB),
       body: SafeArea(
         child: Column(
-          children: [
+          children:[
             if (_mode == InputMode.signLanguage) _buildTopBar(),
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12.0),
                 child: Column(
-                  children: [
+                  children:[
                     _buildMainMediaArea(),
                     const SizedBox(height: 10),
                     if (_mode == InputMode.signLanguage)
@@ -244,7 +303,7 @@ class _StartUsingPageState extends State<StartUsingPage>
       padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
+        children:[
           IconButton(
             icon: const Icon(Icons.info_outline),
             onPressed: () => Navigator.push(
@@ -264,7 +323,7 @@ class _StartUsingPageState extends State<StartUsingPage>
   Widget _buildMainMediaArea() {
     return Expanded(
       child: Stack(
-        children: [
+        children:[
           Container(
             width: double.infinity,
             decoration: BoxDecoration(
@@ -275,7 +334,7 @@ class _StartUsingPageState extends State<StartUsingPage>
             child: _mode == InputMode.signLanguage
                 ? (_cameraController?.value.isInitialized ?? false
                       ? Stack(
-                          children: [
+                          children:[
                             CameraPreview(_cameraController!),
                             if (_isRecording)
                               Positioned(
@@ -289,6 +348,25 @@ class _StartUsingPageState extends State<StartUsingPage>
                                   ),
                                   child: const Text(
                                     "RECORDING...",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            if (_isProcessing)
+                              Positioned(
+                                top: 15,
+                                right: 15,
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange.withOpacity(0.9),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Text(
+                                    "TRANSLATING...",
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold,
@@ -325,8 +403,7 @@ class _StartUsingPageState extends State<StartUsingPage>
 
   Widget _buildSignToTextControls() {
     return Column(
-      children: [
-        // Sentence Result Area
+      children:[
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(12),
@@ -337,10 +414,10 @@ class _StartUsingPageState extends State<StartUsingPage>
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+            children:[
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
+                children:[
                   const Text(
                     "YOUR SENTENCE:",
                     style: TextStyle(
@@ -361,28 +438,36 @@ class _StartUsingPageState extends State<StartUsingPage>
               ),
               const SizedBox(height: 4),
               Text(
-                _accumulatedSentence.isEmpty
+                _isProcessing 
+                  ? "Translating..." 
+                  : _accumulatedSentence.isEmpty
                     ? "Translation will appear here..."
                     : _accumulatedSentence,
                 style: TextStyle(
                   fontSize: 18,
-                  color: _accumulatedSentence.isEmpty
-                      ? Colors.grey
-                      : Colors.black87,
+                  fontStyle: _isProcessing || _accumulatedSentence.isEmpty 
+                      ? FontStyle.italic 
+                      : FontStyle.normal,
+                  color: _isProcessing 
+                      ? Colors.orange 
+                      : _accumulatedSentence.startsWith("[")
+                          ? Colors.red
+                          : _accumulatedSentence.isEmpty
+                              ? Colors.grey
+                              : Colors.black87,
                 ),
               ),
             ],
           ),
         ),
         const SizedBox(height: 12),
-        // Action Buttons
         Row(
-          children: [
+          children:[
             Expanded(
               child: ElevatedButton.icon(
-                onPressed: _startVideoRecording,
-                icon: const Icon(Icons.videocam),
-                label: const Text("RECORD VIDEO"),
+                onPressed: (_isRecording || _isProcessing) ? null : _startVideoRecording,
+                icon: Icon(_isRecording ? Icons.stop : Icons.videocam),
+                label: Text(_isRecording ? "RECORDING..." : "RECORD VIDEO"),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _isRecording ? Colors.red : Colors.green,
                   foregroundColor: Colors.white,
@@ -401,13 +486,12 @@ class _StartUsingPageState extends State<StartUsingPage>
       padding: const EdgeInsets.symmetric(vertical: 12.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
+        children:[
           TextButton(
             onPressed: () {
-              if (_isRecording)
-                setState(
-                  () => _isRecording = false,
-                ); // Stop recording when switching
+              if (_isRecording) {
+                setState(() => _isRecording = false);
+              }
               setState(
                 () => _mode = _mode == InputMode.signLanguage
                     ? InputMode.text
@@ -415,7 +499,7 @@ class _StartUsingPageState extends State<StartUsingPage>
               );
             },
             child: Column(
-              children: [
+              children:[
                 Text(
                   _mode == InputMode.signLanguage ? 'SL' : '3D',
                   style: theme.textTheme.labelLarge,
