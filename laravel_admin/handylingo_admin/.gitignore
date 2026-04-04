@@ -26,3 +26,5 @@ Thumbs.db
 /laravel_admin/handylingo_admin/*.json
 
 .vercel
+
+*.hprof

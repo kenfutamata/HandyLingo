@@ -1,4 +1,8 @@
-0 Hello
-1 Thank you
-2 Null
-3 I Love you
+(none)
+hello
+i_love_you
+no
+okay
+please
+thank_you
+yes
