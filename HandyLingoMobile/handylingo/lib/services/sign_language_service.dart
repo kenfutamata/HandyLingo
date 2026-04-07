@@ -246,7 +246,9 @@ class SignLanguageService {
       final dx = wrist.x - elbow.x;
       final dy = wrist.y - elbow.y;
       final dz = wrist.z - elbow.z;
-      handScale = math.sqrt(dx * dx + dy * dy + dz * dz).clamp(0.01, double.infinity);
+      handScale = math
+          .sqrt(dx * dx + dy * dy + dz * dz)
+          .clamp(0.01, double.infinity);
     }
 
     // MediaPipe Hand layout:
@@ -267,11 +269,12 @@ class SignLanguageService {
       _interpolate(lm, 1, 4, wrist, thumb);
     } else {
       // Thumb at ~45° spread from palm center
-      final thumbTip = _offset(wrist,
+      final thumbTip = _offset(
+        wrist,
         wrist.x + spread * handScale * 1.2,
         wrist.y - 0.2 * handScale,
         wrist.z,
-        1.0
+        1.0,
       );
       _interpolate(lm, 1, 4, wrist, thumbTip);
     }
@@ -280,11 +283,12 @@ class SignLanguageService {
       _interpolate(lm, 5, 8, wrist, index);
     } else {
       // Index at ~15° from center palm
-      final indexTip = _offset(wrist,
+      final indexTip = _offset(
+        wrist,
         wrist.x + spread * handScale * 0.3,
         wrist.y - 0.35 * handScale,
         wrist.z,
-        1.0
+        1.0,
       );
       _interpolate(lm, 5, 8, wrist, indexTip);
     }
@@ -306,11 +310,12 @@ class SignLanguageService {
       );
       _interpolate(lm, 13, 16, wrist, ringTip);
     } else {
-      final ringTip = _offset(wrist,
+      final ringTip = _offset(
+        wrist,
         wrist.x + spread * handScale * -0.15,
         wrist.y - 0.38 * handScale,
         wrist.z,
-        1.0
+        1.0,
       );
       _interpolate(lm, 13, 16, wrist, ringTip);
     }
@@ -319,11 +324,12 @@ class SignLanguageService {
       _interpolate(lm, 17, 20, wrist, pinky);
     } else {
       // Pinky at ~-45° spread
-      final pinkyTip = _offset(wrist,
+      final pinkyTip = _offset(
+        wrist,
         wrist.x + spread * handScale * -0.5,
         wrist.y - 0.3 * handScale,
         wrist.z,
-        1.0
+        1.0,
       );
       _interpolate(lm, 17, 20, wrist, pinkyTip);
     }
