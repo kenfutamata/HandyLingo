@@ -26,14 +26,10 @@ class _AccountPageState extends State<AccountPage> {
 
   // Local Preference State
   bool _emailNotif = true;
-  String _textSize = 'Medium';
-  String _primarySL = 'Filipino';
+  String _textSize = 'Small';
   bool _whiteMode = true;
-  String _voice = 'Male';
-  double _voiceSpeed = 1.0;
+  bool _voiceEnabled = true;
   String _avatarGender = 'Male';
-  double _signingSpeed = 1.0;
-  bool _loop = false;
 
   @override
   void initState() {
@@ -69,17 +65,13 @@ class _AccountPageState extends State<AccountPage> {
             if (prefs != null) {
               _emailNotif = prefs['email_notif'] ?? _emailNotif;
               _textSize = prefs['text_size'] ?? _textSize;
-              _primarySL = prefs['primary_sl'] ?? _primarySL;
               _whiteMode = prefs['white_mode'] ?? _whiteMode;
-              _voice = prefs['voice'] ?? _voice;
-              _voiceSpeed = (prefs['voice_speed'] is num)
-                  ? (prefs['voice_speed'] as num).toDouble()
-                  : _voiceSpeed;
+              _voiceEnabled =
+                  prefs['voice_enabled'] ??
+                  (prefs['voice'] is String
+                      ? (prefs['voice'] as String).toLowerCase() == 'male'
+                      : _voiceEnabled);
               _avatarGender = prefs['avatar_gender'] ?? _avatarGender;
-              _signingSpeed = (prefs['signing_speed'] is num)
-                  ? (prefs['signing_speed'] as num).toDouble()
-                  : _signingSpeed;
-              _loop = prefs['sign_loop'] ?? _loop;
             }
           } catch (e) {
             print('ERROR parsing preferences: $e');
@@ -100,14 +92,12 @@ class _AccountPageState extends State<AccountPage> {
     if (mounted) {
       setState(() {
         _emailNotif = sp.getBool('email_notif') ?? true;
-        _textSize = sp.getString('text_size') ?? 'Medium';
-        _primarySL = sp.getString('primary_sl') ?? 'Filipino';
+        _textSize = sp.getString('text_size') ?? 'Small';
         _whiteMode = sp.getBool('white_mode') ?? true;
-        _voice = sp.getString('voice') ?? 'Male';
-        _voiceSpeed = sp.getDouble('voice_speed') ?? 1.0;
+        _voiceEnabled =
+            sp.getBool('voice_enabled') ??
+            (sp.getString('voice')?.toLowerCase() == 'female' ? false : true);
         _avatarGender = sp.getString('avatar_gender') ?? 'Male';
-        _signingSpeed = sp.getDouble('signing_speed') ?? 1.0;
-        _loop = sp.getBool('sign_loop') ?? false;
       });
     }
   }
@@ -116,18 +106,14 @@ class _AccountPageState extends State<AccountPage> {
     final sp = await SharedPreferences.getInstance();
     await sp.setBool('email_notif', _emailNotif);
     await sp.setString('text_size', _textSize);
-    await sp.setString('primary_sl', _primarySL);
     await sp.setBool('white_mode', _whiteMode);
+    await sp.setBool('voice_enabled', _voiceEnabled);
 
     try {
       themeIsLight.value = _whiteMode;
     } catch (_) {}
 
-    await sp.setString('voice', _voice);
-    await sp.setDouble('voice_speed', _voiceSpeed);
     await sp.setString('avatar_gender', _avatarGender);
-    await sp.setDouble('signing_speed', _signingSpeed);
-    await sp.setBool('sign_loop', _loop);
 
     try {
       final supabase = Supabase.instance.client;
@@ -139,13 +125,9 @@ class _AccountPageState extends State<AccountPage> {
               'preferences': {
                 'email_notif': _emailNotif,
                 'text_size': _textSize,
-                'primary_sl': _primarySL,
                 'white_mode': _whiteMode,
-                'voice': _voice,
-                'voice_speed': _voiceSpeed,
+                'voice_enabled': _voiceEnabled,
                 'avatar_gender': _avatarGender,
-                'signing_speed': _signingSpeed,
-                'sign_loop': _loop,
               },
             })
             .eq('id', userId);
@@ -301,25 +283,7 @@ class _AccountPageState extends State<AccountPage> {
                                 )
                                 .toList(),
                             onChanged: (v) =>
-                                setState(() => _textSize = v ?? 'Medium'),
-                          ),
-                        ),
-                        ListTile(
-                          title: const Text('Primary Sign Language:'),
-                          trailing: DropdownButton<String>(
-                            value: _primarySL,
-                            underline: const SizedBox(),
-                            items: ['International', 'Filipino']
-                                .map(
-                                  (s) => DropdownMenuItem(
-                                    value: s,
-                                    child: Text(s),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (v) => setState(
-                              () => _primarySL = v ?? 'International',
-                            ),
+                                setState(() => _textSize = v ?? 'Small'),
                           ),
                         ),
                         SwitchListTile(
@@ -347,91 +311,10 @@ class _AccountPageState extends State<AccountPage> {
                   Card(
                     child: Column(
                       children: [
-                        ListTile(
-                          title: const Text('Voice:'),
-                          trailing: DropdownButton<String>(
-                            value: _voice,
-                            underline: const SizedBox(),
-                            items: ['Male', 'Female']
-                                .map(
-                                  (s) => DropdownMenuItem(
-                                    value: s,
-                                    child: Text(s),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (v) =>
-                                setState(() => _voice = v ?? 'Male'),
-                          ),
-                        ),
-                        ListTile(
-                          title: const Text('Speed:'),
-                          trailing: DropdownButton<double>(
-                            value: _voiceSpeed,
-                            underline: const SizedBox(),
-                            items: [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75]
-                                .map(
-                                  (d) => DropdownMenuItem(
-                                    value: d,
-                                    child: Text(d.toStringAsFixed(2)),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (v) =>
-                                setState(() => _voiceSpeed = v ?? 1.0),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Sign Language',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Card(
-                    child: Column(
-                      children: [
-                        ListTile(
-                          title: const Text('Avatar:'),
-                          trailing: DropdownButton<String>(
-                            value: _avatarGender,
-                            underline: const SizedBox(),
-                            items: ['Male', 'Female']
-                                .map(
-                                  (s) => DropdownMenuItem(
-                                    value: s,
-                                    child: Text(s),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (v) =>
-                                setState(() => _avatarGender = v ?? 'Male'),
-                          ),
-                        ),
-                        ListTile(
-                          title: const Text('Signing Speed:'),
-                          trailing: DropdownButton<double>(
-                            value: _signingSpeed,
-                            underline: const SizedBox(),
-                            items: [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75]
-                                .map(
-                                  (d) => DropdownMenuItem(
-                                    value: d,
-                                    child: Text(d.toStringAsFixed(2)),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (v) =>
-                                setState(() => _signingSpeed = v ?? 1.0),
-                          ),
-                        ),
                         SwitchListTile(
-                          value: _loop,
-                          title: const Text('Loop'),
-                          onChanged: (v) => setState(() => _loop = v),
+                          value: _voiceEnabled,
+                          title: const Text('Voice'),
+                          onChanged: (v) => setState(() => _voiceEnabled = v),
                         ),
                       ],
                     ),
@@ -545,48 +428,60 @@ class _AccountPageState extends State<AccountPage> {
                 ],
               ),
             ),
-      bottomNavigationBar: BottomAppBar(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        elevation: 0,
-        child: SizedBox(
-          height: 86,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                InkWell(
-                  onTap: () => Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (_) => const StartUsingPage()),
+      bottomNavigationBar: Container(
+        color: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            InkWell(
+              onTap: () => Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const StartUsingPage()),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'SL',
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: Colors.blue,
+                    ),
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.view_in_ar, size: 22),
-                      Text(
-                        'SL',
-                        style: GoogleFonts.inter(fontWeight: FontWeight.w700),
-                      ),
-                    ],
+                  const Text(
+                    'Switch',
+                    style: TextStyle(fontSize: 10, color: Colors.grey),
                   ),
-                ),
-                Text(
-                  'HANDYLINGO',
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w700),
-                ),
-                InkWell(
-                  onTap: () {},
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.person, size: 22),
-                      Text('Account', style: GoogleFonts.inter(fontSize: 10)),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+            Text(
+              'HANDYLINGO',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+              ),
+            ),
+            InkWell(
+              onTap: () {},
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.person, size: 22, color: Colors.blue),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Account',
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
