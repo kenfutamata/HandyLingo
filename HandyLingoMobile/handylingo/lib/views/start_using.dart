@@ -7,12 +7,17 @@ import 'dart:io';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'account_page.dart';
 
 enum InputMode { signLanguage, text }
 
+<<<<<<< HEAD
 enum SignLanguageType { asl, fsl } // NEW: Language context
+=======
+enum SignLanguageType { asl, fsl }
+>>>>>>> cf8aa2c823d423902199ef21ccc066a7849bb6a7
 
 class StartUsingPage extends StatefulWidget {
   const StartUsingPage({super.key});
@@ -22,10 +27,21 @@ class StartUsingPage extends StatefulWidget {
 
 class _StartUsingPageState extends State<StartUsingPage>
     with WidgetsBindingObserver {
+<<<<<<< HEAD
   final String _serverUrl = "http://192.168.254.156:8000/predict";
 
   InputMode _mode = InputMode.signLanguage;
   SignLanguageType _languageType = SignLanguageType.asl; // Default to ASL
+=======
+  // URLs
+  final String _predictUrl = "http://192.168.1.6:8001/predict"; // Python AI
+  final String _laravelUrl = "https://handylingo.vercel.app/save-log";
+  // We still use Supabase for Auth (to get the userId)
+  final _supabase = Supabase.instance.client;
+
+  InputMode _mode = InputMode.signLanguage;
+  SignLanguageType _languageType = SignLanguageType.asl;
+>>>>>>> cf8aa2c823d423902199ef21ccc066a7849bb6a7
 
   CameraController? _cameraController;
   bool _isFrontCamera = true;
@@ -88,6 +104,10 @@ class _StartUsingPageState extends State<StartUsingPage>
       _capturedCount = 0;
       _currentStatus = "Capturing...";
     });
+<<<<<<< HEAD
+=======
+
+>>>>>>> cf8aa2c823d423902199ef21ccc066a7849bb6a7
     List<XFile> frames = [];
     try {
       for (int i = 0; i < _targetFrames; i++) {
@@ -95,11 +115,20 @@ class _StartUsingPageState extends State<StartUsingPage>
         final XFile file = await _cameraController!.takePicture();
         frames.add(file);
         setState(() => _capturedCount = i + 1);
-        await Future.delayed(const Duration(milliseconds: 30));
+        await Future.delayed(const Duration(milliseconds: 10));
       }
+<<<<<<< HEAD
       await _uploadFrames(frames);
     } catch (e) {
       setState(() => _currentStatus = "Error");
+=======
+      _uploadFrames(frames);
+    } catch (e) {
+      setState(() {
+        _isCapturing = false;
+        _currentStatus = "Error";
+      });
+>>>>>>> cf8aa2c823d423902199ef21ccc066a7849bb6a7
     }
   }
 
@@ -110,9 +139,8 @@ class _StartUsingPageState extends State<StartUsingPage>
       _currentStatus = "Analyzing...";
     });
     try {
-      var request = http.MultipartRequest('POST', Uri.parse(_serverUrl));
-
-      // NEW: Send the selected language to Python
+      // 1. Send to Python AI
+      var request = http.MultipartRequest('POST', Uri.parse(_predictUrl));
       request.fields['language'] = _languageType == SignLanguageType.asl
           ? "asl"
           : "fsl";
@@ -123,10 +151,11 @@ class _StartUsingPageState extends State<StartUsingPage>
         );
       }
 
-      var response = await request.send().timeout(const Duration(seconds: 12));
+      var response = await request.send().timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         var responseData = await response.stream.bytesToString();
         var json = jsonDecode(responseData);
+<<<<<<< HEAD
         setState(() {
           String word = json['prediction_label'] ?? "";
           if (word != "(NONE)" && word != "") {
@@ -135,6 +164,24 @@ class _StartUsingPageState extends State<StartUsingPage>
           }
           _currentStatus = "Ready";
         });
+=======
+
+        String word = json['prediction_label'] ?? "";
+        double confidence = (json['confidence'] ?? 0.0) * 100;
+
+        if (word.toUpperCase() != "(NONE)" && word.isNotEmpty) {
+          setState(() {
+            _accumulatedSentence +=
+                (_accumulatedSentence.isEmpty ? "" : " ") + word;
+            _currentStatus = "Detected: $word";
+          });
+
+          // 2. Send to Laravel Backend (Asynchronously)
+          _saveLogToLaravel(word, confidence);
+        } else {
+          setState(() => _currentStatus = "No sign detected");
+        }
+>>>>>>> cf8aa2c823d423902199ef21ccc066a7849bb6a7
       }
     } catch (e) {
       setState(() => _currentStatus = "Retry...");
@@ -145,6 +192,44 @@ class _StartUsingPageState extends State<StartUsingPage>
           File(f.path).delete();
         } catch (_) {}
       }
+<<<<<<< HEAD
+=======
+    }
+  }
+
+  // --- NEW: CALL LARAVEL INSTEAD OF SUPABASE DIRECTLY ---
+  Future<void> _saveLogToLaravel(String word, double accuracy) async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) {
+      debugPrint("Laravel Log: No User ID found");
+      return;
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse(_laravelUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json', // Tells Laravel to talk in JSON
+        },
+        body: jsonEncode({
+          'user_id': userId,
+          'translated_output': word,
+          'accuracy': accuracy,
+        }),
+      );
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        debugPrint("Laravel Vercel: Log Saved Successfully");
+      } else {
+        // This will now print the actual Laravel error message
+        debugPrint(
+          "Laravel Vercel Error (${response.statusCode}): ${response.body}",
+        );
+      }
+    } catch (e) {
+      debugPrint("Failed to connect to Vercel: $e");
+>>>>>>> cf8aa2c823d423902199ef21ccc066a7849bb6a7
     }
   }
 
@@ -152,6 +237,7 @@ class _StartUsingPageState extends State<StartUsingPage>
     _signWebController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..loadRequest(Uri.parse('https://sign.mt'));
+<<<<<<< HEAD
   }
 
   Future<void> _loadTextSizePreference() async {
@@ -170,6 +256,8 @@ class _StartUsingPageState extends State<StartUsingPage>
       default:
         return 16;
     }
+=======
+>>>>>>> cf8aa2c823d423902199ef21ccc066a7849bb6a7
   }
 
   Widget _buildBottomNavigation(ThemeData theme) {
@@ -179,8 +267,13 @@ class _StartUsingPageState extends State<StartUsingPage>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
+<<<<<<< HEAD
           InkWell(
             onTap: () => setState(
+=======
+          TextButton(
+            onPressed: () => setState(
+>>>>>>> cf8aa2c823d423902199ef21ccc066a7849bb6a7
               () => _mode = _mode == InputMode.signLanguage
                   ? InputMode.text
                   : InputMode.signLanguage,
@@ -188,6 +281,7 @@ class _StartUsingPageState extends State<StartUsingPage>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+<<<<<<< HEAD
                 Text(
                   _mode == InputMode.signLanguage ? '3D' : 'SL',
                   style: const TextStyle(
@@ -199,6 +293,17 @@ class _StartUsingPageState extends State<StartUsingPage>
                 const Text(
                   'Switch',
                   style: TextStyle(fontSize: 10, color: Colors.grey),
+=======
+                Icon(
+                  _mode == InputMode.signLanguage
+                      ? Icons.view_in_ar
+                      : Icons.camera_alt,
+                  color: Colors.blue,
+                ),
+                Text(
+                  _mode == InputMode.signLanguage ? '3D View' : 'Sign Cam',
+                  style: const TextStyle(fontSize: 9, color: Colors.grey),
+>>>>>>> cf8aa2c823d423902199ef21ccc066a7849bb6a7
                 ),
               ],
             ),
@@ -207,6 +312,7 @@ class _StartUsingPageState extends State<StartUsingPage>
             'HANDYLINGO',
             style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15),
           ),
+<<<<<<< HEAD
           InkWell(
             onTap: () => Navigator.push(
               context,
@@ -227,6 +333,14 @@ class _StartUsingPageState extends State<StartUsingPage>
                 ),
               ],
             ),
+=======
+          IconButton(
+            icon: const Icon(Icons.person, size: 24),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AccountPage()),
+            ),
+>>>>>>> cf8aa2c823d423902199ef21ccc066a7849bb6a7
           ),
         ],
       ),
@@ -283,16 +397,24 @@ class _StartUsingPageState extends State<StartUsingPage>
                                   ),
                                 ),
                               ),
+<<<<<<< HEAD
 
                               // NEW: LANGUAGE TOGGLE CHIP (ASL vs FSL)
+=======
+>>>>>>> cf8aa2c823d423902199ef21ccc066a7849bb6a7
                               Positioned(
                                 top: 10,
                                 left: 10,
                                 child: ChoiceChip(
                                   label: Text(
                                     _languageType == SignLanguageType.asl
+<<<<<<< HEAD
                                         ? "ASL"
                                         : "FSL",
+=======
+                                        ? "ASL Mode"
+                                        : "FSL Mode",
+>>>>>>> cf8aa2c823d423902199ef21ccc066a7849bb6a7
                                   ),
                                   selected: true,
                                   onSelected: (val) => setState(
@@ -303,11 +425,18 @@ class _StartUsingPageState extends State<StartUsingPage>
                                   ),
                                 ),
                               ),
+<<<<<<< HEAD
 
                               if (_isCapturing)
                                 Center(
                                   child: Text(
                                     "$_capturedCount/10",
+=======
+                              if (_isCapturing)
+                                Center(
+                                  child: Text(
+                                    "$_capturedCount/$_targetFrames",
+>>>>>>> cf8aa2c823d423902199ef21ccc066a7849bb6a7
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 48,
@@ -333,6 +462,7 @@ class _StartUsingPageState extends State<StartUsingPage>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   if (_mode == InputMode.signLanguage) ...[
+<<<<<<< HEAD
                     const SizedBox(height: 10),
                     Text(
                       "MODE: ${_languageType.name.toUpperCase()} - $_currentStatus",
@@ -340,16 +470,33 @@ class _StartUsingPageState extends State<StartUsingPage>
                         fontWeight: FontWeight.bold,
                         color: Colors.blue,
                         fontSize: 10,
+=======
+                    const SizedBox(height: 15),
+                    Text(
+                      "STATUS: $_currentStatus",
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                        fontSize: 11,
+                        letterSpacing: 1.1,
+>>>>>>> cf8aa2c823d423902199ef21ccc066a7849bb6a7
                       ),
                     ),
                     Expanded(
                       child: SingleChildScrollView(
                         child: Text(
                           _accumulatedSentence.isEmpty
+<<<<<<< HEAD
                               ? "Perform your sign..."
                               : _accumulatedSentence,
                           style: TextStyle(
                             fontSize: _sentenceTextSize,
+=======
+                              ? "Ready to translate..."
+                              : _accumulatedSentence,
+                          style: const TextStyle(
+                            fontSize: 22,
+>>>>>>> cf8aa2c823d423902199ef21ccc066a7849bb6a7
                             fontWeight: FontWeight.bold,
                           ),
                           textAlign: TextAlign.center,
@@ -363,10 +510,23 @@ class _StartUsingPageState extends State<StartUsingPage>
                           onPressed: (_isCapturing || _isSending)
                               ? null
                               : _startCaptureSequence,
+<<<<<<< HEAD
                           icon: const Icon(Icons.videocam, size: 20),
                           label: Text(
                             _isCapturing ? "RECORDING" : "CAPTURE SIGN",
                             style: const TextStyle(fontSize: 12),
+=======
+                          icon: Icon(
+                            _isCapturing ? Icons.stop : Icons.videocam,
+                            size: 20,
+                          ),
+                          label: Text(
+                            _isCapturing ? "RECORDING" : "CAPTURE SIGN",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+>>>>>>> cf8aa2c823d423902199ef21ccc066a7849bb6a7
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _isCapturing
@@ -374,18 +534,38 @@ class _StartUsingPageState extends State<StartUsingPage>
                                 : Colors.green,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(
+<<<<<<< HEAD
                               horizontal: 20,
                               vertical: 10,
+=======
+                              horizontal: 30,
+                              vertical: 15,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15),
+>>>>>>> cf8aa2c823d423902199ef21ccc066a7849bb6a7
                             ),
                           ),
                         ),
                         IconButton(
                           onPressed: () =>
                               setState(() => _accumulatedSentence = ""),
+<<<<<<< HEAD
                           icon: const Icon(Icons.refresh, color: Colors.blue),
                         ),
                       ],
                     ),
+=======
+                          icon: const Icon(
+                            Icons.delete_sweep,
+                            color: Colors.redAccent,
+                            size: 28,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+>>>>>>> cf8aa2c823d423902199ef21ccc066a7849bb6a7
                   ] else
                     const Spacer(),
                   _buildBottomNavigation(theme),

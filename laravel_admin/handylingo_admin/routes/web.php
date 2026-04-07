@@ -6,6 +6,7 @@ use App\Http\Controllers\AdminLoginController;
 use App\Http\Controllers\FeedbacksController;
 use App\Http\Controllers\LandingPageController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\SignLanguageController;
 use App\Http\Controllers\UsersController;
 use App\Http\Middleware\FirebaseMiddleware;
 use Illuminate\Support\Facades\DB;
