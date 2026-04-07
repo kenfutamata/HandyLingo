@@ -82,7 +82,7 @@
 
                 <!-- CTA Buttons -->
                 <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                    <a href="#"
+                    <a href="https://drive.google.com/drive/folders/1GrssiYSEiHRrXaHJFnBJFLeRNB91Nf2c?usp=sharing"
                         class="inline-flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white text-lg font-semibold px-8 py-3 rounded-xl shadow-lg transition duration-300">
                         Download App
                     </a>
@@ -228,15 +228,6 @@
         </div>
 
         <div class="max-w-4xl mx-auto mt-16 grid grid-cols-1 md:grid-cols-2 gap-10">
-            <div class="bg-white border border-gray-200 rounded-2xl shadow-xl hover:shadow-2xl transition transform hover:-translate-y-2">
-                <div class="p-6 text-center">
-                    <img src="{{ asset('assets/landing_page/kevin.png') }}" alt="Team Member" class="w-20 h-20 mx-auto rounded-full mb-4">
-                    <h3 class="text-lg font-semibold">James Kevin P. Velasco</h3>
-                    <p class="text-blue-600 font-medium">Hustler</p>
-                    <p class="text-gray-600 text-sm mt-2">Manages the Documents and promotes HandyLingo.</p>
-                </div>
-            </div>
-
             <div class="bg-white border border-gray-200 rounded-2xl shadow-xl hover:shadow-2xl transition transform hover:-translate-y-2">
 
                 <div class="p-6 text-center">
