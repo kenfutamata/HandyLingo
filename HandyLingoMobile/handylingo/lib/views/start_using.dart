@@ -7,12 +7,14 @@ import 'dart:io';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // SUPABASE
+import 'package:uuid/uuid.dart'; // UUID for Primary Key
+import 'package:flutter_tts/flutter_tts.dart'; // AUDIO SYSTEM
 
 import 'account_page.dart';
 
 enum InputMode { signLanguage, text }
-
-enum SignLanguageType { asl, fsl } // NEW: Language context
+enum SignLanguageType { asl, fsl }
 
 class StartUsingPage extends StatefulWidget {
   const StartUsingPage({super.key});
@@ -20,12 +22,17 @@ class StartUsingPage extends StatefulWidget {
   State<StartUsingPage> createState() => _StartUsingPageState();
 }
 
-class _StartUsingPageState extends State<StartUsingPage>
-    with WidgetsBindingObserver {
-  final String _serverUrl = "http://192.168.254.156:8000/predict";
+class _StartUsingPageState extends State<StartUsingPage> with WidgetsBindingObserver {
+  final String _serverUrl = "http://192.168.1.6:8001/predict";
+  
+  // Initialize Supabase Client
+  final _supabase = Supabase.instance.client;
+  
+  // Initialize Text-to-Speech
+  final FlutterTts _flutterTts = FlutterTts();
 
   InputMode _mode = InputMode.signLanguage;
-  SignLanguageType _languageType = SignLanguageType.asl; // Default to ASL
+  SignLanguageType _languageType = SignLanguageType.asl;
 
   CameraController? _cameraController;
   bool _isFrontCamera = true;
@@ -43,9 +50,44 @@ class _StartUsingPageState extends State<StartUsingPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _initTts(); // Setup Audio
     _initializeSignWeb();
     _loadTextSizePreference();
     _initCamera();
+  }
+
+  // --- AUDIO SYSTEM SETUP ---
+  Future<void> _initTts() async {
+    await _flutterTts.setLanguage("en-US");
+    await _flutterTts.setPitch(1.0);
+    await _flutterTts.setSpeechRate(0.5); // Adjust speed
+  }
+
+  Future<void> _speak(String text) async {
+    if (text.isNotEmpty) {
+      await _flutterTts.speak(text);
+    }
+  }
+
+  // --- DATABASE SYSTEM SETUP ---
+  Future<void> _saveLogToSupabase(String word, double accuracy) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) {
+      debugPrint("Database Error: No user logged in.");
+      return;
+    }
+
+    try {
+      await _supabase.from('sign_language_logs').insert({
+        'id': const Uuid().v4(), // Generate unique log ID
+        'user_id': user.id,      // Link to logged-in user
+        'translated_output': word,
+        'accuracy': accuracy,
+      });
+      debugPrint("Supabase: Log saved successfully!");
+    } catch (e) {
+      debugPrint("Supabase Save Error: $e");
+    }
   }
 
   Future<void> _initCamera() async {
@@ -54,25 +96,15 @@ class _StartUsingPageState extends State<StartUsingPage>
     if (_cameraController != null) await _cameraController!.dispose();
 
     final selectedCamera = cameras.firstWhere(
-      (c) =>
-          c.lensDirection ==
-          (_isFrontCamera
-              ? CameraLensDirection.front
-              : CameraLensDirection.back),
+      (c) => c.lensDirection == (_isFrontCamera ? CameraLensDirection.front : CameraLensDirection.back),
       orElse: () => cameras.first,
     );
 
-    _cameraController = CameraController(
-      selectedCamera,
-      ResolutionPreset.low,
-      enableAudio: false,
-    );
+    _cameraController = CameraController(selectedCamera, ResolutionPreset.low, enableAudio: false);
     try {
       await _cameraController!.initialize();
       if (mounted) setState(() {});
-    } catch (e) {
-      debugPrint("Camera Error: $e");
-    }
+    } catch (e) { debugPrint("Camera Error: $e"); }
   }
 
   void _toggleCamera() {
@@ -83,11 +115,7 @@ class _StartUsingPageState extends State<StartUsingPage>
 
   Future<void> _startCaptureSequence() async {
     if (_isCapturing || _cameraController == null) return;
-    setState(() {
-      _isCapturing = true;
-      _capturedCount = 0;
-      _currentStatus = "Capturing...";
-    });
+    setState(() { _isCapturing = true; _capturedCount = 0; _currentStatus = "Capturing..."; });
     List<XFile> frames = [];
     try {
       for (int i = 0; i < _targetFrames; i++) {
@@ -98,53 +126,45 @@ class _StartUsingPageState extends State<StartUsingPage>
         await Future.delayed(const Duration(milliseconds: 30));
       }
       await _uploadFrames(frames);
-    } catch (e) {
-      setState(() => _currentStatus = "Error");
-    }
+    } catch (e) { setState(() => _currentStatus = "Error"); }
   }
 
   Future<void> _uploadFrames(List<XFile> frames) async {
-    setState(() {
-      _isCapturing = false;
-      _isSending = true;
-      _currentStatus = "Analyzing...";
-    });
+    setState(() { _isCapturing = false; _isSending = true; _currentStatus = "Analyzing..."; });
     try {
       var request = http.MultipartRequest('POST', Uri.parse(_serverUrl));
-
-      // NEW: Send the selected language to Python
-      request.fields['language'] = _languageType == SignLanguageType.asl
-          ? "asl"
-          : "fsl";
+      request.fields['language'] = _languageType == SignLanguageType.asl ? "asl" : "fsl";
 
       for (var frame in frames) {
-        request.files.add(
-          await http.MultipartFile.fromPath('files', frame.path),
-        );
+        request.files.add(await http.MultipartFile.fromPath('files', frame.path));
       }
 
-      var response = await request.send().timeout(const Duration(seconds: 12));
+      var response = await request.send().timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         var responseData = await response.stream.bytesToString();
         var json = jsonDecode(responseData);
-        setState(() {
-          String word = json['prediction_label'] ?? "";
-          if (word != "(NONE)" && word != "") {
-            _accumulatedSentence +=
-                (_accumulatedSentence.isEmpty ? "" : " ") + word;
-          }
-          _currentStatus = "Ready";
-        });
+        
+        String word = json['prediction_label'] ?? "";
+        double confidence = (json['confidence'] ?? 0.0) * 100;
+
+        if (word.toUpperCase() != "(NONE)" && word != "") {
+          setState(() {
+            _accumulatedSentence += (_accumulatedSentence.isEmpty ? "" : " ") + word;
+          });
+
+          // 1. Trigger Audio
+          _speak(word);
+
+          // 2. Trigger Database Save
+          _saveLogToSupabase(word, confidence);
+        }
+        _currentStatus = "Ready";
       }
     } catch (e) {
       setState(() => _currentStatus = "Retry...");
     } finally {
       setState(() => _isSending = false);
-      for (var f in frames) {
-        try {
-          File(f.path).delete();
-        } catch (_) {}
-      }
+      for (var f in frames) { try { File(f.path).delete(); } catch (_) {} }
     }
   }
 
@@ -163,12 +183,9 @@ class _StartUsingPageState extends State<StartUsingPage>
 
   double get _sentenceTextSize {
     switch (_textSize) {
-      case 'Large':
-        return 24;
-      case 'Medium':
-        return 20;
-      default:
-        return 16;
+      case 'Large': return 24;
+      case 'Medium': return 20;
+      default: return 16;
     }
   }
 
@@ -180,51 +197,24 @@ class _StartUsingPageState extends State<StartUsingPage>
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           InkWell(
-            onTap: () => setState(
-              () => _mode = _mode == InputMode.signLanguage
-                  ? InputMode.text
-                  : InputMode.signLanguage,
-            ),
+            onTap: () => setState(() => _mode = _mode == InputMode.signLanguage ? InputMode.text : InputMode.signLanguage),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  _mode == InputMode.signLanguage ? '3D' : 'SL',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: Colors.blue,
-                  ),
-                ),
-                const Text(
-                  'Switch',
-                  style: TextStyle(fontSize: 10, color: Colors.grey),
-                ),
+                Text(_mode == InputMode.signLanguage ? '3D' : 'SL', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blue)),
+                const Text('Switch', style: TextStyle(fontSize: 10, color: Colors.grey)),
               ],
             ),
           ),
-          Text(
-            'HANDYLINGO',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15),
-          ),
+          Text('HANDYLINGO', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15)),
           InkWell(
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const AccountPage()),
-            ),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccountPage())),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.person, size: 22, color: Colors.blue),
                 const SizedBox(height: 4),
-                Text(
-                  'Account',
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.blue,
-                  ),
-                ),
+                Text('Account', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.blue)),
               ],
             ),
           ),
@@ -239,28 +229,18 @@ class _StartUsingPageState extends State<StartUsingPage>
     return Scaffold(
       backgroundColor: const Color(0xFFEAF8FB),
       appBar: AppBar(
-        title: Text(
-          "HandyLingo",
-          style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18),
-        ),
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        title: Text("HandyLingo", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18)),
+        centerTitle: true, elevation: 0, backgroundColor: Colors.white, foregroundColor: Colors.black,
       ),
       body: Column(
         children: [
           Expanded(
             flex: _mode == InputMode.signLanguage ? 3 : 5,
             child: Container(
-              margin: _mode == InputMode.signLanguage
-                  ? const EdgeInsets.all(12)
-                  : EdgeInsets.zero,
+              margin: _mode == InputMode.signLanguage ? const EdgeInsets.all(12) : EdgeInsets.zero,
               decoration: BoxDecoration(
                 color: Colors.black,
-                borderRadius: _mode == InputMode.signLanguage
-                    ? BorderRadius.circular(20)
-                    : BorderRadius.zero,
+                borderRadius: _mode == InputMode.signLanguage ? BorderRadius.circular(20) : BorderRadius.zero,
               ),
               clipBehavior: Clip.antiAlias,
               child: _mode == InputMode.signLanguage
@@ -269,52 +249,16 @@ class _StartUsingPageState extends State<StartUsingPage>
                             fit: StackFit.expand,
                             children: [
                               CameraPreview(_cameraController!),
+                              Positioned(top: 10, right: 10, child: CircleAvatar(backgroundColor: Colors.black45, child: IconButton(icon: const Icon(Icons.flip_camera_ios, color: Colors.white), onPressed: _toggleCamera))),
                               Positioned(
-                                top: 10,
-                                right: 10,
-                                child: CircleAvatar(
-                                  backgroundColor: Colors.black45,
-                                  child: IconButton(
-                                    icon: const Icon(
-                                      Icons.flip_camera_ios,
-                                      color: Colors.white,
-                                    ),
-                                    onPressed: _toggleCamera,
-                                  ),
-                                ),
-                              ),
-
-                              // NEW: LANGUAGE TOGGLE CHIP (ASL vs FSL)
-                              Positioned(
-                                top: 10,
-                                left: 10,
+                                top: 10, left: 10,
                                 child: ChoiceChip(
-                                  label: Text(
-                                    _languageType == SignLanguageType.asl
-                                        ? "ASL"
-                                        : "FSL",
-                                  ),
+                                  label: Text(_languageType == SignLanguageType.asl ? "ASL" : "FSL"),
                                   selected: true,
-                                  onSelected: (val) => setState(
-                                    () => _languageType =
-                                        _languageType == SignLanguageType.asl
-                                        ? SignLanguageType.fsl
-                                        : SignLanguageType.asl,
-                                  ),
+                                  onSelected: (val) => setState(() => _languageType = _languageType == SignLanguageType.asl ? SignLanguageType.fsl : SignLanguageType.asl),
                                 ),
                               ),
-
-                              if (_isCapturing)
-                                Center(
-                                  child: Text(
-                                    "$_capturedCount/10",
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 48,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
+                              if (_isCapturing) Center(child: Text("$_capturedCount/10", style: const TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.bold))),
                             ],
                           )
                         : const Center(child: CircularProgressIndicator()))
@@ -325,69 +269,35 @@ class _StartUsingPageState extends State<StartUsingPage>
             flex: _mode == InputMode.signLanguage ? 2 : 1,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-              ),
+              decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   if (_mode == InputMode.signLanguage) ...[
                     const SizedBox(height: 10),
-                    Text(
-                      "MODE: ${_languageType.name.toUpperCase()} - $_currentStatus",
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue,
-                        fontSize: 10,
-                      ),
-                    ),
+                    Text("MODE: ${_languageType.name.toUpperCase()} - $_currentStatus", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontSize: 10)),
                     Expanded(
                       child: SingleChildScrollView(
-                        child: Text(
-                          _accumulatedSentence.isEmpty
-                              ? "Perform your sign..."
-                              : _accumulatedSentence,
-                          style: TextStyle(
-                            fontSize: _sentenceTextSize,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
+                        child: Text(_accumulatedSentence.isEmpty ? "Perform your sign..." : _accumulatedSentence, style: TextStyle(fontSize: _sentenceTextSize, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
                       ),
                     ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         ElevatedButton.icon(
-                          onPressed: (_isCapturing || _isSending)
-                              ? null
-                              : _startCaptureSequence,
+                          onPressed: (_isCapturing || _isSending) ? null : _startCaptureSequence,
                           icon: const Icon(Icons.videocam, size: 20),
-                          label: Text(
-                            _isCapturing ? "RECORDING" : "CAPTURE SIGN",
-                            style: const TextStyle(fontSize: 12),
-                          ),
+                          label: Text(_isCapturing ? "RECORDING" : "CAPTURE SIGN", style: const TextStyle(fontSize: 12)),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _isCapturing
-                                ? Colors.red
-                                : Colors.green,
+                            backgroundColor: _isCapturing ? Colors.red : Colors.green,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 10,
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                           ),
                         ),
-                        IconButton(
-                          onPressed: () =>
-                              setState(() => _accumulatedSentence = ""),
-                          icon: const Icon(Icons.refresh, color: Colors.blue),
-                        ),
+                        IconButton(onPressed: () => setState(() => _accumulatedSentence = ""), icon: const Icon(Icons.refresh, color: Colors.blue)),
                       ],
                     ),
-                  ] else
-                    const Spacer(),
+                  ] else const Spacer(),
                   _buildBottomNavigation(theme),
                 ],
               ),
@@ -402,6 +312,7 @@ class _StartUsingPageState extends State<StartUsingPage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _cameraController?.dispose();
+    _flutterTts.stop(); // Clean up audio
     super.dispose();
   }
 }
