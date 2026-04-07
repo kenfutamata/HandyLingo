@@ -16,3 +16,5 @@ Route::get('/test', function () {
 Route::get('/test-route', function () {
     return response()->json(['status' => 'API is working!']);
 });
+
+Route::post('/save-log-web', [LogController::class, 'store']);
