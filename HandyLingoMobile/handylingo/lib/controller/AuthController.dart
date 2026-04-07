@@ -4,6 +4,36 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class AuthController {
   final SupabaseClient _supabase = Supabase.instance.client;
 
+  /// Sends a password reset link to the user's email.
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      await _supabase.auth.resetPasswordForEmail(
+        email,
+        redirectTo: 'com.example.handylingo://login-callback',
+      );
+    } on AuthException catch (e) {
+      throw Exception(e.message);
+    } catch (e) {
+      throw Exception('An unexpected error occurred: $e');
+    }
+  }
+
+  /// Triggers the Google OAuth sign-in flow.
+  Future<void> signInWithGoogle() async {
+    try {
+      await _supabase.auth.signInWithOAuth(
+        OAuthProvider.google,
+        // This must match the redirect URL configured in your Supabase dashboard
+        redirectTo: 'com.example.handylingo://login-callback',
+      );
+    } on AuthException catch (e) {
+      throw Exception(e.message);
+    } catch (e) {
+      throw Exception('Google Sign-In failed: $e');
+    }
+  }
+
+  /// Registers a new user with additional metadata.
   Future<void> signUp({
     required String userName,
     required String firstName,
@@ -36,154 +66,66 @@ class AuthController {
   }
 
   /// Signs in a user using either email or username.
-  /// Returns a map containing at least `role`, `id`, and `email` on success.
+  /// Returns a map containing role, id, and email on success.
   Future<Map<String, String?>> signIn({
     required String credential,
     required String password,
   }) async {
     try {
-      // Determine if credential is an email or username
       String? email;
       String? role;
       String? id;
 
       final isEmail = credential.contains('@');
 
-      // First attempt: if credential looks like an email, try signing in directly
+      // 1. Resolve Email if username was provided
       if (isEmail) {
         email = credential;
-        try {
-          final res = await _supabase.auth.signInWithPassword(
-            email: email,
-            password: password,
-          );
-
-          if (res.session == null) {
-            throw Exception('Invalid credentials');
-          }
-
-          // Fetch role and id from users table using auth user id
-          final userId = res.user?.id;
-          if (userId != null) {
-            final userRow = await _supabase
-                .from('users')
-                .select('id, email, role')
-                .eq('id', userId)
-                .maybeSingle();
-            if (userRow != null) {
-              role = userRow['role'] as String?;
-              id = userRow['id']?.toString();
-            }
-          }
-
-          return {'role': role ?? 'user', 'id': id, 'email': email};
-        } on AuthException catch (e) {
-          throw Exception(e.message);
-        }
-      }
-
-      // If credential is not an email, first try signing in using it as an email (rare but possible)
-      try {
-        final res = await _supabase.auth.signInWithPassword(
-          email: credential,
-          password: password,
-        );
-
-        if (res.session != null) {
-          // fetched by treating credential as email
-          final userId = res.user?.id;
-          String? foundEmail = credential;
-          if (userId != null) {
-            final userRow = await _supabase
-                .from('users')
-                .select('id, email, role')
-                .eq('id', userId)
-                .maybeSingle();
-            if (userRow != null) {
-              role = userRow['role'] as String?;
-              id = userRow['id']?.toString();
-              foundEmail = userRow['email'] as String? ?? foundEmail;
-            }
-          }
-          return {'role': role ?? 'user', 'id': id, 'email': foundEmail};
-        }
-      } on AuthException {
-        // ignore; proceed to lookup by username and try again
-      }
-
-      // credential is a username: try to resolve username -> email
-      print('[Auth] Looking up username: $credential');
-
-      var userRow = await _supabase
-          .from('users')
-          .select('id, email, role')
-          .eq('user_name', credential)
-          .maybeSingle();
-
-      userRow ??= await _supabase
+      } else {
+        final userRow = await _supabase
             .from('users')
             .select('id, email, role')
-            .ilike('user_name', credential)
+            .eq('user_name', credential)
             .maybeSingle();
 
-      userRow ??= await _supabase
-            .from('users')
-            .select('id, email, role')
-            .ilike('user_name', '%$credential%')
-            .maybeSingle();
-
-      if (userRow == null) {
-        // No matching user found by username. This could also indicate RLS (row-level security) prevents anonymous reads.
-        throw Exception(
-          'No user found with that username. This may be because the database prevents anonymous lookups; try signing in with your email instead.',
-        );
+        if (userRow == null) {
+          throw Exception('No user found with that username.');
+        }
+        email = userRow['email'] as String?;
+        role = userRow['role'] as String?;
+        id = userRow['id']?.toString();
       }
-
-      // Debug: print basic found user info in dev (do NOT log sensitive fields in production)
-      print(
-        '[Auth] Found user row for username: id=${userRow['id']}, email=${userRow['email']}, role=${userRow['role']}',
-      );
-
-      email = userRow['email'] as String?;
-      role = userRow['role'] as String?;
-      // normalize id to string (UUID or numeric id becomes its String repr)
-      id = userRow['id']?.toString();
 
       if (email == null) {
-        throw Exception('No email associated with provided username.');
+        throw Exception('Could not identify email for login.');
       }
 
-      // Now try signing in using the resolved email
-      try {
-        final res = await _supabase.auth.signInWithPassword(
-          email: email,
-          password: password,
-        );
+      // 2. Perform Sign In
+      final res = await _supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
 
-        if (res.session == null) {
-          throw Exception('Invalid credentials');
-        }
-
-        // Ensure role/id are up-to-date from the DB (if missing)
-        if (role == null || id == null) {
-          final userId = res.user?.id;
-          if (userId != null) {
-            final userRow2 = await _supabase
-                .from('users')
-                .select('id, email, role')
-                .eq('id', userId)
-                .maybeSingle();
-            if (userRow2 != null) {
-              role = userRow2['role'] as String?;
-              id = userRow2['id']?.toString();
-            }
-          }
-        }
-
-        return {'role': role ?? 'user', 'id': id, 'email': email};
-      } on AuthException catch (e) {
-        throw Exception(e.message);
+      if (res.session == null) {
+        throw Exception('Invalid credentials');
       }
+
+      // 3. Fetch Role/ID if not already fetched (for email logins)
+      if (role == null || id == null) {
+        final userId = res.user?.id;
+        final userRow = await _supabase
+            .from('users')
+            .select('id, email, role')
+            .eq('id', userId!)
+            .maybeSingle();
+        if (userRow != null) {
+          role = userRow['role'] as String?;
+          id = userRow['id']?.toString();
+        }
+      }
+
+      return {'role': role ?? 'user', 'id': id, 'email': email};
+      
     } on AuthException catch (e) {
       throw Exception(e.message);
     } catch (e) {
@@ -192,6 +134,7 @@ class AuthController {
   }
 }
 
+// Global Provider
 final authRepositoryProvider = Provider<AuthController>((ref) {
   return AuthController();
 });

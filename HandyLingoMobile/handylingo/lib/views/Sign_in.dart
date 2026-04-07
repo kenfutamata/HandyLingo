@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // REQUIRED
 import '../controller/AuthController.dart';
 import 'Sign_up.dart';
 import 'welcome_dashboard.dart';
+import 'start_using.dart'; // NEW IMPORT
+import 'forgot_password.dart';
 
 class Sign_in extends ConsumerStatefulWidget {
   const Sign_in({super.key});
-
   @override
   ConsumerState<Sign_in> createState() => _SignInState();
 }
@@ -23,11 +24,7 @@ class _SignInState extends ConsumerState<Sign_in> {
     final password = _passwordController.text;
 
     if (credential.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter both credential and password'),
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter both credential and password')));
       return;
     }
 
@@ -35,24 +32,29 @@ class _SignInState extends ConsumerState<Sign_in> {
     final auth = ref.read(authRepositoryProvider);
 
     try {
-      final info = await auth.signIn(
-        credential: credential,
-        password: password,
-      );
+      final info = await auth.signIn(credential: credential, password: password);
+      final userId = info['id'];
 
-      // Navigate based on role
-      final role = info['role'] ?? 'user';
-      if (role == 'user') {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const WelcomeDashboard()),
-        );
+      if (userId != null) {
+        final prefs = await SharedPreferences.getInstance();
+        int loginCount = prefs.getInt('login_count_$userId') ?? 0;
+        
+        // Safety: If the listener in main.dart hasn't fired yet, increment here
+        if (loginCount == 0) {
+           loginCount = 1;
+           await prefs.setInt('login_count_$userId', 1);
+        }
+
+        if (loginCount > 1) {
+          Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const StartUsingPage()));
+        } else {
+          Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const WelcomeDashboard()));
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.toString())));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -76,68 +78,24 @@ class _SignInState extends ConsumerState<Sign_in> {
             child: Column(
               children: [
                 const SizedBox(height: 40),
-
-                /// LOGO
                 Image.asset('assets/images/handylingologo.png', height: 220),
-
                 const SizedBox(height: 50),
-
-                /// EMAIL FIELD
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    "Email or Username",
-                    style: GoogleFonts.inter(fontSize: 12, color: Colors.black),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _credentialController,
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-
+                
+                _buildLabel("Email or Username"),
+                _buildTextField(_credentialController, false),
                 const SizedBox(height: 24),
-
-                /// PASSWORD FIELD
+                
+                _buildLabel("Password"),
+                _buildTextField(_passwordController, true),
+                
                 Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    "Password",
-                    style: GoogleFonts.inter(fontSize: 12, color: Colors.black),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ForgotPassword())),
+                    child: Text("Forgot Password?", style: GoogleFonts.inter(fontSize: 12, color: Colors.white, decoration: TextDecoration.underline)),
                   ),
                 ),
 
-                const SizedBox(height: 40),
-
-                /// SIGN IN BUTTON
                 SizedBox(
                   width: double.infinity,
                   height: 54,
@@ -145,62 +103,63 @@ class _SignInState extends ConsumerState<Sign_in> {
                     onPressed: _loading ? null : _signIn,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(41),
-                        side: const BorderSide(color: Colors.black),
-                      ),
-                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(41)),
                     ),
-                    child: _loading
-                        ? const CircularProgressIndicator()
-                        : Text(
-                            "Sign In",
-                            style: GoogleFonts.inter(fontSize: 16),
-                          ),
+                    child: _loading ? const CircularProgressIndicator() : Text("Sign In", style: GoogleFonts.inter(fontSize: 16, color: Colors.black)),
                   ),
                 ),
+                
                 const SizedBox(height: 24),
-                Align(
-                  alignment: Alignment.center,
-                  child: Text(
-                    "Or Sign in using",
-                    style: GoogleFonts.inter(fontSize: 14, color: Colors.black),
-                  ),
-                ),
-                //Google Sign in
-                const SizedBox(height: 24),
+                
+                // --- CORRECTED GOOGLE SIGN IN ---
                 InkWell(
                   onTap: () async {
-                    const url = 'https://your-google-signin-url.com';
-                    if (await canLaunchUrl(Uri.parse(url))) {
-                      await launchUrl(Uri.parse(url));
-                    } else {
-                      throw 'Could not launch $url';
+                    setState(() => _loading = true);
+                    try {
+                      await ref.read(authRepositoryProvider).signInWithGoogle();
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+                    } finally {
+                      if (mounted) setState(() => _loading = false);
                     }
                   },
-                  child: Image.asset('assets/images/google.png'),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Image.asset('assets/images/google.png', height: 24),
+                      const SizedBox(width: 12),
+                      Text("Sign in with Google", style: GoogleFonts.inter(fontSize: 14, color: Colors.white, decoration: TextDecoration.underline)),
+                    ],
+                  ),
                 ),
+                
                 const SizedBox(height: 80),
                 InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const Sign_Up()),
-                    );
-                  },
-                  child: Text(
-                    "Don't have an account? Sign Up",
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: Colors.white,
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const Sign_Up())),
+                  child: Text("Don't have an account? Sign Up", style: GoogleFonts.inter(fontSize: 14, color: Colors.white, decoration: TextDecoration.underline)),
                 ),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLabel(String text) {
+    return Align(alignment: Alignment.centerLeft, child: Text(text, style: GoogleFonts.inter(fontSize: 12, color: Colors.black)));
+  }
+
+  Widget _buildTextField(TextEditingController controller, bool obscure) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8.0),
+      child: TextField(
+        controller: controller,
+        obscureText: obscure,
+        decoration: InputDecoration(
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
         ),
       ),
     );

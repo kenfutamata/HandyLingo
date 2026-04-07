@@ -11,7 +11,7 @@
 
     <!-- requestLegacyExternalStorage allows the app to save images on Android 10/11 -->
     <application
-        android:label="handylingo"
+        android:label="HandyLingo"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"
@@ -46,6 +46,8 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="com.example.handylingo" android:host="login-callback" />
+                <data android:scheme="io.supabase.handylingo" android:host="reset-callback" />
+
             </intent-filter>
 
         </activity>

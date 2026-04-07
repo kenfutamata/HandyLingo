@@ -8,40 +8,30 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 // Import your views
 import 'views/Sign_in.dart';
 import 'views/welcome_dashboard.dart';
+import 'views/update_password.dart';
+import 'views/start_using.dart'; // NEW IMPORT
 
-// Global notifier for theme state
 final ValueNotifier<bool> themeIsLight = ValueNotifier<bool>(true);
-
-// Global navigator key for redirection from Auth listener
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
-  // 1. Crucial for Camera, WebView, and SharedPreferences
   WidgetsFlutterBinding.ensureInitialized();
-
-  // 2. Load environment variables
   try {
     await dotenv.load(fileName: ".env");
   } catch (e) {
-    debugPrint("Warning: .env file not found. Ensure it exists in project root.");
+    debugPrint("Warning: .env file not found.");
   }
 
-  // 3. Initialize Supabase
   await Supabase.initialize(
     url: dotenv.env['SUPABASE_URL'] ?? '',
     anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
   );
 
-  runApp(
-    const ProviderScope(
-      child: MyApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: MyApp()));
 }
 
 class MyApp extends ConsumerStatefulWidget {
   const MyApp({super.key});
-
   @override
   ConsumerState<MyApp> createState() => _MyAppState();
 }
@@ -53,12 +43,9 @@ class _MyAppState extends ConsumerState<MyApp> {
   @override
   void initState() {
     super.initState();
-
-    // 4. Load stored theme preference
     _loadTheme();
 
-    // 5. Listen for Auth State Changes (Handles Magic Links/Email Verification)
-    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
       final session = data.session;
       final event = data.event;
 
@@ -67,25 +54,38 @@ class _MyAppState extends ConsumerState<MyApp> {
       if (event == AuthChangeEvent.signedIn && session != null) {
         _redirecting = true;
         
-        // Use a small delay to ensure the Navigator is mounted
+        // --- LOGIN COUNT LOGIC ---
+        final prefs = await SharedPreferences.getInstance();
+        final userId = session.user.id;
+        int loginCount = prefs.getInt('login_count_$userId') ?? 0;
+        
+        // Increment and save
+        loginCount++;
+        await prefs.setInt('login_count_$userId', loginCount);
+
         Future.delayed(Duration.zero, () {
-          navigatorKey.currentState?.pushNamedAndRemoveUntil(
-            '/home',
-            (route) => false,
-          );
+          if (loginCount > 1) {
+            // Returning user
+            navigatorKey.currentState?.pushNamedAndRemoveUntil('/start-using', (route) => false);
+          } else {
+            // First time user
+            navigatorKey.currentState?.pushNamedAndRemoveUntil('/home', (route) => false);
+          }
+        });
+      }
+
+      if (event == AuthChangeEvent.passwordRecovery) {
+        _redirecting = true;
+        Future.delayed(Duration.zero, () {
+          navigatorKey.currentState?.pushNamedAndRemoveUntil('/update-password', (route) => false);
         });
       }
     });
   }
 
   Future<void> _loadTheme() async {
-    try {
-      final sp = await SharedPreferences.getInstance();
-      final val = sp.getBool('white_mode') ?? true;
-      themeIsLight.value = val;
-    } catch (e) {
-      debugPrint("Theme load error: $e");
-    }
+    final sp = await SharedPreferences.getInstance();
+    themeIsLight.value = sp.getBool('white_mode') ?? true;
   }
 
   @override
@@ -96,25 +96,15 @@ class _MyAppState extends ConsumerState<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    // Define Themes
     final lightTheme = ThemeData(
       colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
       scaffoldBackgroundColor: const Color(0xFFEAF8FB),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFFEAF8FB),
-        elevation: 0,
-        iconTheme: IconThemeData(color: Colors.black87),
-      ),
       useMaterial3: true,
     );
 
     final darkTheme = ThemeData(
       brightness: Brightness.dark,
       scaffoldBackgroundColor: const Color(0xFF0F1720),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFF0F1720),
-        elevation: 0,
-      ),
       useMaterial3: true,
     );
 
@@ -132,6 +122,8 @@ class _MyAppState extends ConsumerState<MyApp> {
           routes: {
             '/': (context) => const Sign_in(),
             '/home': (context) => const WelcomeDashboard(),
+            '/start-using': (context) => const StartUsingPage(), // REGISTERED ROUTE
+            '/update-password': (context) => const UpdatePassword(),
           },
         );
       },
