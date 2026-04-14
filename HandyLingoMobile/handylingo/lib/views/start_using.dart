@@ -23,7 +23,10 @@ class StartUsingPage extends StatefulWidget {
 }
 
 class _StartUsingPageState extends State<StartUsingPage> with WidgetsBindingObserver {
+  //api call link
   final String _serverUrl = "https://handylingo-handylingo-ai.hf.space/predict";
+  //localhost
+  // final String _serverUrl = "http://192.168.1.8:8001/predict";
   
   // Initialize Supabase Client
   final _supabase = Supabase.instance.client;

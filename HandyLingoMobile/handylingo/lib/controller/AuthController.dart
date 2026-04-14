@@ -125,7 +125,6 @@ class AuthController {
       }
 
       return {'role': role ?? 'user', 'id': id, 'email': email};
-      
     } on AuthException catch (e) {
       throw Exception(e.message);
     } catch (e) {

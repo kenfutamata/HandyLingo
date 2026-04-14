@@ -9,7 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'views/Sign_in.dart';
 import 'views/welcome_dashboard.dart';
 import 'views/update_password.dart';
-import 'views/start_using.dart'; // NEW IMPORT
+import 'views/start_using.dart';
 
 final ValueNotifier<bool> themeIsLight = ValueNotifier<bool>(true);
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -38,48 +38,23 @@ class MyApp extends ConsumerStatefulWidget {
 
 class _MyAppState extends ConsumerState<MyApp> {
   StreamSubscription<AuthState>? _authSubscription;
-  bool _redirecting = false;
 
   @override
   void initState() {
     super.initState();
     _loadTheme();
-
-    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
-      final session = data.session;
+    
+    // Listen for Auth changes (Sign in, Sign out, Password recovery)
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       final event = data.event;
-
-      if (_redirecting) return;
-
-      if (event == AuthChangeEvent.signedIn && session != null) {
-        _redirecting = true;
-        
-        // --- LOGIN COUNT LOGIC ---
-        final prefs = await SharedPreferences.getInstance();
-        final userId = session.user.id;
-        int loginCount = prefs.getInt('login_count_$userId') ?? 0;
-        
-        // Increment and save
-        loginCount++;
-        await prefs.setInt('login_count_$userId', loginCount);
-
-        Future.delayed(Duration.zero, () {
-          if (loginCount > 1) {
-            // Returning user
-            navigatorKey.currentState?.pushNamedAndRemoveUntil('/start-using', (route) => false);
-          } else {
-            // First time user
-            navigatorKey.currentState?.pushNamedAndRemoveUntil('/home', (route) => false);
-          }
-        });
-      }
+      final session = data.session;
 
       if (event == AuthChangeEvent.passwordRecovery) {
-        _redirecting = true;
-        Future.delayed(Duration.zero, () {
-          navigatorKey.currentState?.pushNamedAndRemoveUntil('/update-password', (route) => false);
-        });
+        navigatorKey.currentState?.pushNamedAndRemoveUntil('/update-password', (route) => false);
       }
+      
+      // Note: We don't handle INITIAL_SESSION here because the RootPage 
+      // handle the first-load logic more reliably for the UI.
     });
   }
 
@@ -118,15 +93,54 @@ class _MyAppState extends ConsumerState<MyApp> {
           theme: lightTheme,
           darkTheme: darkTheme,
           themeMode: isLight ? ThemeMode.light : ThemeMode.dark,
-          initialRoute: '/',
+          // Change the initial route to a gatekeeper widget
+          home: const AuthGate(),
           routes: {
-            '/': (context) => const Sign_in(),
+            '/login': (context) => const Sign_in(),
             '/home': (context) => const WelcomeDashboard(),
-            '/start-using': (context) => const StartUsingPage(), // REGISTERED ROUTE
+            '/start-using': (context) => const StartUsingPage(),
             '/update-password': (context) => const UpdatePassword(),
           },
         );
       },
     );
+  }
+}
+
+/// This Widget determines where the user should land when the app starts.
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final session = Supabase.instance.client.auth.currentSession;
+
+    // 1. If no session exists, go to Sign In page.
+    if (session == null) {
+      return const Sign_in();
+    }
+
+    // 2. If session exists, check the login count from SharedPreferences.
+    return FutureBuilder<int>(
+      future: _getLoginCount(session.user.id),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+
+        final loginCount = snapshot.data ?? 0;
+
+        if (loginCount > 1) {
+          return const StartUsingPage();
+        } else {
+          return const WelcomeDashboard();
+        }
+      },
+    );
+  }
+
+  Future<int> _getLoginCount(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt('login_count_$userId') ?? 0;
   }
 }
