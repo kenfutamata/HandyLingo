@@ -54,7 +54,14 @@ flutter:
     - .env
     - assets/images/handylingologo.png
     - assets/images/google.png
+    - assets/images/SL_mode.png
+    - assets/images/3D_mode.jpg
+    - assets/images/3D_mode_replay_button.jpg
+    - assets/images/SL3D_mode.png
+    - assets/images/account_settings1.jpg
+    - assets/images/account_settings2.jpg
     - assets/labels.txt
+    - flutter_01.png
     # Ensure this matches the filename in your assets folder exactly!
     - assets/sign_language_model.tflite
     - assets/model_unquant.tflite
