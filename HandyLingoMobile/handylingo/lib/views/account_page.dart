@@ -53,7 +53,8 @@ class _AccountPageState extends State<AccountPage> {
 
       final row = await supabase
           .from('users')
-          .select('id, first_name, last_name, user_name, email, role')
+          // IMPORTANT: Added 'profile_picture' here so the app actually downloads it
+          .select('id, first_name, last_name, user_name, email, role, profile_picture')
           .eq('id', userId)
           .maybeSingle();
 
@@ -123,7 +124,6 @@ class _AccountPageState extends State<AccountPage> {
             .from('users')
             .update({
               'preferences': {
-                'email_notif': _emailNotif,
                 'text_size': _textSize,
                 'white_mode': _whiteMode,
                 'voice_enabled': _voiceEnabled,
@@ -148,7 +148,8 @@ class _AccountPageState extends State<AccountPage> {
     final res = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => EditProfilePage(userRow: _userRow)),
     );
-    if (res == true) _loadProfile();
+    // When returning from edit profile (if saved), reload the updated profile_picture!
+    if (res == true) _loadProfile(); 
   }
 
   Future<void> _logout() async {
@@ -197,11 +198,12 @@ class _AccountPageState extends State<AccountPage> {
                     children: [
                       CircleAvatar(
                         radius: 36,
-                        backgroundColor: Colors.white,
-                        backgroundImage: _userRow?['avatar_url'] != null
-                            ? NetworkImage(_userRow!['avatar_url'])
+                        backgroundColor: Colors.grey.shade200, // Looks better when loading/empty
+                        // Use profile_picture here
+                        backgroundImage: _userRow?['profile_picture'] != null
+                            ? NetworkImage(_userRow!['profile_picture'])
                             : null,
-                        child: _userRow?['avatar_url'] == null
+                        child: _userRow?['profile_picture'] == null
                             ? Icon(
                                 (_userRow?['avatar_gender'] ?? _avatarGender) ==
                                         'Female'
@@ -264,11 +266,6 @@ class _AccountPageState extends State<AccountPage> {
                   Card(
                     child: Column(
                       children: [
-                        SwitchListTile(
-                          value: _emailNotif,
-                          title: const Text('Email Notifications'),
-                          onChanged: (v) => setState(() => _emailNotif = v),
-                        ),
                         ListTile(
                           title: const Text('Text Size:'),
                           trailing: DropdownButton<String>(
