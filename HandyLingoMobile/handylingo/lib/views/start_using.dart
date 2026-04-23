@@ -259,8 +259,8 @@ class _StartUsingPageState extends State<StartUsingPage>
   // ── Server ──────────────────────────────────────────────────
   // ⚠ Update this IP if your PC's address changes.
   // Run `ipconfig` on Windows to find your current IPv4 address.
-  static const String _serverUrl = "http://192.168.254.156:8001/predict";
-  static const String _landmarkUrl = "http://192.168.254.156:8001/landmark";
+  static const String _serverUrl = "https://handylingo-handylingo-ai.hf.space/predict";
+  static const String _landmarkUrl = "https://handylingo-handylingo-ai.hf.space/landmark";
 
   // Tracks whether the server was reachable on the last attempt.
   // Shown as a status dot in the UI so the user knows immediately
