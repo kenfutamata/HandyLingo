@@ -308,6 +308,7 @@ class _StartUsingPageState extends State<StartUsingPage>
   late final stt.SpeechToText _speechToText;
   bool _speechAvailable = false;
   bool _isListening = false;
+  bool _voiceEnabled = true;
   String _recognizedSpeech = "";
 
   // ────────────────────────────────────────────────────────────
@@ -318,6 +319,7 @@ class _StartUsingPageState extends State<StartUsingPage>
     _initTts();
     _initSpeechRecognition();
     _initializeSignWeb();
+    _loadVoicePreference();
     _loadTextSizePreference();
     _initCamera();
   }
@@ -329,8 +331,18 @@ class _StartUsingPageState extends State<StartUsingPage>
     await _flutterTts.setSpeechRate(0.5);
   }
 
+  Future<void> _loadVoicePreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() => _voiceEnabled = prefs.getBool('voice_enabled') ?? true);
+  }
+
   Future<void> _speak(String text) async {
-    if (text.isNotEmpty) await _flutterTts.speak(text);
+    if (text.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final enabled = prefs.getBool('voice_enabled') ?? true;
+    if (!enabled) return;
+    await _flutterTts.speak(text);
   }
 
   // ── Supabase ────────────────────────────────────────────────
@@ -977,7 +989,6 @@ class _StartUsingPageState extends State<StartUsingPage>
           right: 16,
           child: FloatingActionButton(
             heroTag: 'speechToTextBtn',
-            backgroundColor: _isListening ? Colors.red : Colors.blue,
             onPressed: !_speechAvailable && !_isListening
                 ? null
                 : (_isListening ? _stopListening : _startListening),
@@ -1018,8 +1029,9 @@ class _StartUsingPageState extends State<StartUsingPage>
   }
 
   Widget _buildBottomNavigation(ThemeData theme) {
+    final surfaceColor = theme.colorScheme.surface;
     return Container(
-      color: Colors.white,
+      color: surfaceColor,
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -1081,8 +1093,10 @@ class _StartUsingPageState extends State<StartUsingPage>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final surfaceColor = theme.colorScheme.surface;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFEAF8FB),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(
           "HandyLingo",
@@ -1090,8 +1104,6 @@ class _StartUsingPageState extends State<StartUsingPage>
         ),
         centerTitle: true,
         elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
       ),
       body: Column(
         children: [
@@ -1102,7 +1114,9 @@ class _StartUsingPageState extends State<StartUsingPage>
                   ? const EdgeInsets.all(12)
                   : EdgeInsets.zero,
               decoration: BoxDecoration(
-                color: Colors.black,
+                color: _mode == InputMode.signLanguage
+                    ? Colors.black
+                    : surfaceColor,
                 borderRadius: _mode == InputMode.signLanguage
                     ? BorderRadius.circular(20)
                     : BorderRadius.zero,
@@ -1117,9 +1131,11 @@ class _StartUsingPageState extends State<StartUsingPage>
             flex: _mode == InputMode.signLanguage ? 2 : 1,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(30),
+                ),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
