@@ -1,3 +1,4 @@
+import 'dart:convert'; // Import required for jsonEncode
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -27,6 +28,8 @@ class FeedbackNotifier extends Notifier<AsyncValue<void>> {
 
     // Perform operation
     state = await AsyncValue.guard(() async {
+      
+      // 1. Insert the feedback into the feedbacks table
       await client.from('feedbacks').insert({
         'user_id': user.id,
         'first_name': user.userMetadata?['first_name'] ?? '',
@@ -36,6 +39,28 @@ class FeedbackNotifier extends Notifier<AsyncValue<void>> {
         'feedback_type': 'App Feedback',
         'rating': rating,
       });
+
+      // 2. Insert a notification into the notifications table
+      // (Assuming your table name is 'notifications')
+      await client.from('notifications').insert({
+        // 'id' is omitted assuming your database auto-generates the UUID (e.g. gen_random_uuid())
+        'type': 'Feedback_Submitted', // varchar (NON-NULLABLE)
+        
+        // 'data' is a text field. Storing JSON as a string is the standard approach here
+        'data': jsonEncode({
+          'title': 'Feedback Received',
+          'body': 'Thank you for your feedback! We appreciate your input.',
+          'rating_given': rating,
+        }), 
+        
+        // Polimorphic relations (NON-NULLABLE)
+        'notifiable_type': 'User', // Indicates this notification belongs to a User
+        'notifiable_id': user.id,  // The UUID of the user receiving the notification
+        
+        // read_at, created_at, and updated_at are NULLABLE so we let the database handle them 
+        // (usually they default to NULL and now() respectively).
+      });
+      
     });
 
     return !state.hasError;

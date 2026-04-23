@@ -58,9 +58,32 @@ class AuthController {
       if (res.user == null) {
         throw Exception('Sign up failed');
       }
+
+      // VALIDATION 1: When "Prevent Email Enumeration" is ENABLED (Supabase Default)
+      // If the email already exists, Supabase returns the user but with an empty identities list.
+      if (res.user?.identities != null && res.user!.identities!.isEmpty) {
+        throw Exception('This email is already in use.');
+      }
     } on AuthException catch (e) {
+      // VALIDATION 2: When "Prevent Email Enumeration" is DISABLED
+      // Supabase throws an AuthException directly.
+      if (e.message.toLowerCase().contains('already registered') ||
+          e.message.toLowerCase().contains('already exists')) {
+        throw Exception('This email is already in use.');
+      }
       throw Exception(e.message);
     } catch (e) {
+      // If our custom exception was thrown in the try block, pass it through without wrapping it
+      if (e.toString().contains('already in use')) {
+        rethrow;
+      }
+      
+      // Bonus: Catch database constraint errors if the username is already taken
+      if (e.toString().contains('duplicate key value') || 
+          e.toString().contains('user_name')) {
+        throw Exception('This username is already taken.');
+      }
+      
       throw Exception('Error during sign up: $e');
     }
   }

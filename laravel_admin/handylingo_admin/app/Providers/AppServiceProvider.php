@@ -49,5 +49,17 @@ class AppServiceProvider extends ServiceProvider
             URL::forceScheme('https');
         }
         putenv('GOOGLE_CLOUD_PHP_FIRESTORE_REST=true');
+    \Illuminate\Support\Facades\View::composer('*', function ($view) {
+        if (\Illuminate\Support\Facades\Auth::check()) {
+            $user = \Illuminate\Support\Facades\Auth::user();
+            
+            // This forces the data into every view, including components
+            $view->with([
+                'user' => $user,
+                'notifications' => $user->notifications()->latest()->take(10)->get(),
+                'unreadNotifications' => $user->unreadNotifications,
+            ]);
+        }
+    });
     }
 }
