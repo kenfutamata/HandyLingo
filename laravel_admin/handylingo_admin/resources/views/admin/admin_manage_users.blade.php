@@ -53,9 +53,9 @@
         <x-admin_sidebar />
 
         <main class="flex-1 overflow-y-auto p-4 md:p-8 pb-24">
-            @if(session('Success'))
+            @if(session('success'))
             <div id="notification-bar" class="fixed top-6 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-6 py-3 rounded shadow-lg z-50">
-                {{ session('Success') }}
+                {{ session('success') }}
             </div>
             @elseif(session('error'))
             <div id="notification-bar" class="fixed top-6 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-6 py-3 rounded shadow-lg z-50">
