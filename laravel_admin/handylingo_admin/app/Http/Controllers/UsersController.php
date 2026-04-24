@@ -87,31 +87,46 @@ class UsersController extends Controller
         $supabaseUrl = env('SUPABASE_URL');
         $supabaseServiceKey = env('SUPABASE_SERVICE_ROLE_KEY');
 
+        if (! $supabaseUrl || ! $supabaseServiceKey) {
+            Log::error('Supabase configuration missing', [
+                'SUPABASE_URL' => $supabaseUrl,
+                'SUPABASE_SERVICE_ROLE_KEY' => $supabaseServiceKey ? 'set' : 'missing',
+            ]);
+
+            return redirect()->route('admin.manage.users')
+                ->with('error', 'Supabase configuration is missing. User deletion failed.');
+        }
+
         try {
             $url = rtrim($supabaseUrl, '/') . '/auth/v1/admin/users/' . $user->id;
 
+            /** @var \Illuminate\Http\Client\Response $response */
             $response = Http::withHeaders([
                 'apikey' => $supabaseServiceKey,
                 'Authorization' => 'Bearer ' . $supabaseServiceKey,
             ])->delete($url);
 
-            if ($response->successful() || $response->status() == 404) {
+            if ($response->successful() || $response->status() === 404) {
                 $user->delete();
-                return redirect()->route('admin.manage.users')->with('Success', 'User deleted successfully.');
+
+                return redirect()->route('admin.manage.users')
+                    ->with('success', 'User deleted successfully.');
             }
 
             Log::error('Supabase Delete Failed', [
                 'status' => $response->status(),
-                'url'    => $url,
-                'error'  => $response->json() ?? $response->body(),
+                'url' => $url,
+                'error' => $response->json() ?: $response->body(),
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Supabase Connection Error', [
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
+                'url' => $url ?? null,
             ]);
         }
 
-        return redirect()->route('admin.manage.users')->with('error', 'Failed to delete user. Check logs.');
+        return redirect()->route('admin.manage.users')
+            ->with('error', 'Failed to delete user. Check logs.');
     }
 
     public function export()
