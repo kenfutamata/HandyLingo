@@ -82,7 +82,7 @@
 
                 <!-- CTA Buttons -->
                 <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                    <a href="https://www.dropbox.com/scl/fi/0x7c2jpm1cbs8rc2luwsz/handylingo.apk?rlkey=7yx2mjbgr6gz17xde049qlksn&st=lt3rlz99&dl=1"
+                    <a href="https://www.dropbox.com/scl/fi/9q0gtofstsx5ol1uw56ja/handylingo.apk?rlkey=4tj2evpv1epbjf1uyex0hk53a&st=lfq800wi&dl=1"
                         class="inline-flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white text-lg font-semibold px-8 py-3 rounded-xl shadow-lg transition duration-300">
                         Download App
                     </a>
