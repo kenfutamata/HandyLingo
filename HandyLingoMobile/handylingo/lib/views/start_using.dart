@@ -66,17 +66,17 @@ import 'account_page.dart';
 // ─────────────────────────────────────────────────────────────
 
 /// Maximum capture duration in seconds.
-const double _kMaxCaptureSecs = 10.0;
+const double _kMaxCaptureSecs = 3.0;
 
 /// Frame throttle — keep every Nth camera frame during capture.
 /// At ~30 fps, N=3 → ~10 fps → ~100 raw frames in 10 s.
-const int _kFrameSkip = 3;
+const int _kFrameSkip = 1;
 
 /// Max frames sent to server per prediction request.
 /// Flutter subsamples captured frames down to this count before
 /// uploading. The server's np.linspace resampler converts any
 /// input count → 100 frames, so the model always gets 100 frames.
-const int _kMaxUploadFrames = 30;
+const int _kMaxUploadFrames = 100;
 
 // ─────────────────────────────────────────────────────────────
 //  MediaPipe hand connections for skeleton drawing
@@ -435,7 +435,8 @@ class _StartUsingPageState extends State<StartUsingPage>
         if (_captureFrameTick % _kFrameSkip != 0) return;
         try {
           _captureRawFrames.add(_latestRawFrame!);
-          if (mounted) setState(() => _capturedCount = _captureRawFrames.length);
+          if (mounted)
+            setState(() => _capturedCount = _captureRawFrames.length);
         } catch (e) {
           debugPrint("Frame copy error: $e");
         }
