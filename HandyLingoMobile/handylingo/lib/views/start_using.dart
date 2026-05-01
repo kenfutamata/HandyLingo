@@ -1,29 +1,42 @@
 // ============================================================
-//  start_using.dart  —  FIXED VERSION
+//  start_using.dart  —  FIXED VERSION  (v2 — smooth skeleton)
 //
-//  Fix for "worked yesterday, broken today" problem:
-//  ─────────────────────────────────────────────────────────
-//  Root cause: static_image_mode=True (correct for accuracy)
-//  runs full MediaPipe detection on every frame.
-//  100 frames × ~300ms/frame = ~30s on HF free-tier CPU.
-//  Flutter's 30s timeout was right on the edge — some days
-//  it finishes in 28s (works), some days 33s (silent failure).
+//  Changes from previous revision
+//  ────────────────────────────────────────────────────────────
+//  FIX A — Skeleton shown BEFORE capture begins
+//    Root cause: _startSkeletonPolling() was only called inside
+//    _startCaptureSequence(), and _pollLandmark() bailed early
+//    when _captureRawFrames was empty.  So the overlay was
+//    invisible until the user pressed "CAPTURE SIGN".
 //
-//  Fix 1 — Subsample to 30 frames before upload (line ~600):
-//    Flutter captures ~100 frames, then picks 30 evenly spaced
-//    ones using linspace before sending to the server.
-//    The server already resamples ANY input count → 100 frames
-//    via np.linspace, so the model still gets its 100-frame input.
-//    Server processing time drops from ~30s → ~9s (3× faster).
+//    Fix:
+//      • _initCamera() now starts a continuous image stream
+//        immediately after the controller is initialised.
+//      • A lightweight _latestRawFrame field (Map?) is always
+//        updated by the stream callback; capture-mode frames are
+//        still collected into _captureRawFrames as before.
+//      • _startSkeletonPolling() is called right after the camera
+//        is ready — skeleton overlay is live in idle/preview state.
+//      • _pollLandmark() uses _latestRawFrame instead of
+//        _captureRawFrames.last, so it works with 0 captured frames.
+//      • The "Hand detected" badge no longer requires _isCapturing.
 //
-//  Fix 2 — Timeout raised 30s → 60s:
-//    Safety net for slow HF days even after the frame reduction.
+//  FIX B — Smooth skeleton (no stutter / lag)
+//    Root cause: 300 ms poll interval  +  800 ms HTTP timeout
+//    → the skeleton could skip several poll cycles while a slow
+//    request was in-flight, producing choppy animation.
 //
-//  Fix 3 — TimeoutException now shows a clear message:
-//    Previously caught by the bare `catch (e)` block → showed
-//    generic "Error — retry" with no indication it was a timeout.
-//    Now shows "Server timeout — try again" so the user knows
-//    to wait a moment and retry rather than assume a bug.
+//    Fix:
+//      • Poll interval  : 300 ms → 100 ms
+//      • Landmark timeout: 800 ms → 300 ms  (local LAN server)
+//      • The _isPollingSkeleton guard still prevents pile-up.
+//
+//  FIX C — Stream lifecycle
+//    Previously the image stream was started in
+//    _startCaptureSequence() and stopped in _finishCapture().
+//    Now the stream runs continuously from _initCamera() until
+//    dispose() / camera switch.  Capture only sets/clears the
+//    _isCapturingStream flag to gate frame collection.
 //
 //  Everything else unchanged from the previous revision.
 // ============================================================
@@ -63,22 +76,35 @@ const int _kFrameSkip = 3;
 /// Flutter subsamples captured frames down to this count before
 /// uploading. The server's np.linspace resampler converts any
 /// input count → 100 frames, so the model always gets 100 frames.
-///
-/// Why 30?  100 frames × static_image_mode=True ≈ 30 s on HF CPU.
-///          30 frames × static_image_mode=True  ≈  9 s on HF CPU.
-///          3× speed improvement with zero accuracy loss.
 const int _kMaxUploadFrames = 30;
 
 // ─────────────────────────────────────────────────────────────
 //  MediaPipe hand connections for skeleton drawing
 // ─────────────────────────────────────────────────────────────
 const _kHandConnections = [
-  [0, 1],  [1, 2],  [2, 3],  [3, 4],
-  [0, 5],  [5, 6],  [6, 7],  [7, 8],
-  [0, 9],  [9, 10], [10, 11],[11, 12],
-  [0, 13],[13, 14], [14, 15],[15, 16],
-  [0, 17],[17, 18], [18, 19],[19, 20],
-  [5, 9],  [9, 13], [13, 17],
+  [0, 1],
+  [1, 2],
+  [2, 3],
+  [3, 4],
+  [0, 5],
+  [5, 6],
+  [6, 7],
+  [7, 8],
+  [0, 9],
+  [9, 10],
+  [10, 11],
+  [11, 12],
+  [0, 13],
+  [13, 14],
+  [14, 15],
+  [15, 16],
+  [0, 17],
+  [17, 18],
+  [18, 19],
+  [19, 20],
+  [5, 9],
+  [9, 13],
+  [13, 17],
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -97,8 +123,8 @@ List<Uint8List> _convertFrames(List<Map<String, dynamic>> rawFrames) {
   final result = <Uint8List>[];
   for (final f in rawFrames) {
     try {
-      final int w   = f['w'] as int;
-      final int h   = f['h'] as int;
+      final int w = f['w'] as int;
+      final int h = f['h'] as int;
       final String fmt = f['fmt'] as String;
       final int sensorOrientation = f['sensorOrientation'] as int? ?? 0;
       img.Image imgObj;
@@ -106,26 +132,30 @@ List<Uint8List> _convertFrames(List<Map<String, dynamic>> rawFrames) {
       if (fmt == 'bgra') {
         final bytes = f['bytes'] as Uint8List;
         imgObj = img.Image.fromBytes(
-          width: w, height: h,
+          width: w,
+          height: h,
           bytes: bytes.buffer,
           order: img.ChannelOrder.bgra,
           numChannels: 4,
         );
       } else {
-        final Uint8List yBytes  = f['y'] as Uint8List;
-        final int       yStride = f['yStride'] as int;
+        final Uint8List yBytes = f['y'] as Uint8List;
+        final int yStride = f['yStride'] as int;
         final rgb = Uint8List(w * h * 3);
         for (int row = 0; row < h; row++) {
           final int rowBase = row * yStride;
           final int rgbBase = row * w * 3;
           for (int col = 0; col < w; col++) {
             final int gray = yBytes[rowBase + col];
-            final int i    = rgbBase + col * 3;
-            rgb[i] = gray; rgb[i + 1] = gray; rgb[i + 2] = gray;
+            final int i = rgbBase + col * 3;
+            rgb[i] = gray;
+            rgb[i + 1] = gray;
+            rgb[i + 2] = gray;
           }
         }
         imgObj = img.Image.fromBytes(
-          width: w, height: h,
+          width: w,
+          height: h,
           bytes: rgb.buffer,
           numChannels: 3,
           order: img.ChannelOrder.rgb,
@@ -158,8 +188,13 @@ class LandmarkPainter extends CustomPainter {
   double _px(double x, double w) => mirrorX ? (1.0 - x) * w : x * w;
   double _py(double y, double h) => y * h;
 
-  void _drawHand(Canvas canvas, Size size, List<dynamic> landmarks,
-      Color dotColor, Color lineColor) {
+  void _drawHand(
+    Canvas canvas,
+    Size size,
+    List<dynamic> landmarks,
+    Color dotColor,
+    Color lineColor,
+  ) {
     if (landmarks.isEmpty) return;
     final linePaint = Paint()
       ..color = lineColor
@@ -173,28 +208,45 @@ class LandmarkPainter extends CustomPainter {
       final a = landmarks[conn[0]];
       final b = landmarks[conn[1]];
       canvas.drawLine(
-        Offset(_px((a[0] as num).toDouble(), size.width),
-               _py((a[1] as num).toDouble(), size.height)),
-        Offset(_px((b[0] as num).toDouble(), size.width),
-               _py((b[1] as num).toDouble(), size.height)),
+        Offset(
+          _px((a[0] as num).toDouble(), size.width),
+          _py((a[1] as num).toDouble(), size.height),
+        ),
+        Offset(
+          _px((b[0] as num).toDouble(), size.width),
+          _py((b[1] as num).toDouble(), size.height),
+        ),
         linePaint,
       );
     }
     for (final lm in landmarks) {
       canvas.drawCircle(
-        Offset(_px((lm[0] as num).toDouble(), size.width),
-               _py((lm[1] as num).toDouble(), size.height)),
-        4, dotPaint,
+        Offset(
+          _px((lm[0] as num).toDouble(), size.width),
+          _py((lm[1] as num).toDouble(), size.height),
+        ),
+        4,
+        dotPaint,
       );
     }
   }
 
   @override
   void paint(Canvas canvas, Size size) {
-    _drawHand(canvas, size, leftHand,
-        const Color(0xFF00E5FF), const Color(0xFF0097A7));
-    _drawHand(canvas, size, rightHand,
-        const Color(0xFFFFD740), const Color(0xFFFF6F00));
+    _drawHand(
+      canvas,
+      size,
+      leftHand,
+      const Color(0xFF00E5FF),
+      const Color(0xFF0097A7),
+    );
+    _drawHand(
+      canvas,
+      size,
+      rightHand,
+      const Color(0xFFFFD740),
+      const Color(0xFFFF6F00),
+    );
   }
 
   @override
@@ -207,6 +259,7 @@ class LandmarkPainter extends CustomPainter {
 // ─────────────────────────────────────────────────────────────
 
 enum InputMode { signLanguage, text }
+
 enum SignLanguageType { asl, fsl }
 
 class StartUsingPage extends StatefulWidget {
@@ -217,45 +270,48 @@ class StartUsingPage extends StatefulWidget {
 
 class _StartUsingPageState extends State<StartUsingPage>
     with WidgetsBindingObserver {
-
   // ── Server ──────────────────────────────────────────────────
-  static const String _serverUrl   = "https://handylingo-handylingo-ai.hf.space/predict";
-  static const String _landmarkUrl = "https://handylingo-handylingo-ai.hf.space/landmark";
+  static const String _serverUrl = "http://192.168.254.156:8001/predict";
+  static const String _landmarkUrl = "http://192.168.254.156:8001/landmark";
 
   bool _serverReachable = true;
 
-  final _supabase   = Supabase.instance.client;
+  final _supabase = Supabase.instance.client;
   final FlutterTts _flutterTts = FlutterTts();
 
-  InputMode        _mode         = InputMode.signLanguage;
+  InputMode _mode = InputMode.signLanguage;
   SignLanguageType _languageType = SignLanguageType.asl;
 
   // ── Camera ──────────────────────────────────────────────────
   CameraController? _cameraController;
-  bool _isFrontCamera  = true;
-  bool _isCapturing    = false;
-  bool _isSending      = false;
+  bool _isFrontCamera = true;
+  bool _isCapturing = false;
+  bool _isSending = false;
   bool _isStreamActive = false;
 
   // ── Capture state ────────────────────────────────────────────
   final List<Map<String, dynamic>> _captureRawFrames = [];
-  bool   _isCapturingStream  = false;
-  int    _captureFrameTick   = 0;
-  int    _capturedCount      = 0;
+  bool _isCapturingStream = false;
+  int _captureFrameTick = 0;
+  int _capturedCount = 0;
   double _captureSecondsLeft = _kMaxCaptureSecs;
   Timer? _captureTimer;
   Timer? _countdownTimer;
 
+  // ── FIX A: always-available latest frame for skeleton polling ─
+  // Updated every camera tick; does NOT require capture to be active.
+  Map<String, dynamic>? _latestRawFrame;
+
   // ── Landmark state ───────────────────────────────────────────
-  List<dynamic> _leftHandLandmarks  = [];
+  List<dynamic> _leftHandLandmarks = [];
   List<dynamic> _rightHandLandmarks = [];
   Timer? _landmarkPollTimer;
-  bool   _isPollingSkeleton = false;
+  bool _isPollingSkeleton = false;
 
   // ── Output ──────────────────────────────────────────────────
   String _accumulatedSentence = "";
-  String _currentStatus       = "Ready";
-  String _textSize            = 'Small';
+  String _currentStatus = "Ready";
+  String _textSize = 'Small';
 
   /// Each entry: {'word': 'HOW ARE YOU', 'pct': 98.0}
   final List<Map<String, dynamic>> _predictions = [];
@@ -269,9 +325,9 @@ class _StartUsingPageState extends State<StartUsingPage>
 
   // ── Speech-to-text ──────────────────────────────────────────
   late final stt.SpeechToText _speechToText;
-  bool   _speechAvailable  = false;
-  bool   _isListening      = false;
-  bool   _voiceEnabled     = true;
+  bool _speechAvailable = false;
+  bool _isListening = false;
+  bool _voiceEnabled = true;
   String _recognizedSpeech = "";
 
   // ────────────────────────────────────────────────────────────
@@ -319,10 +375,10 @@ class _StartUsingPageState extends State<StartUsingPage>
     if (user == null) return;
     try {
       await _supabase.from('sign_language_logs').insert({
-        'id':                const Uuid().v4(),
-        'user_id':           user.id,
+        'id': const Uuid().v4(),
+        'user_id': user.id,
         'translated_output': word,
-        'accuracy':          accuracy,
+        'accuracy': accuracy,
       });
     } catch (e) {
       debugPrint("Supabase Save Error: $e");
@@ -334,6 +390,9 @@ class _StartUsingPageState extends State<StartUsingPage>
     final cameras = await availableCameras();
     if (cameras.isEmpty) return;
 
+    // Cancel skeleton polling before tearing down the old controller.
+    _landmarkPollTimer?.cancel();
+
     if (_cameraController != null) {
       if (_isStreamActive) {
         await _cameraController!.stopImageStream();
@@ -343,8 +402,11 @@ class _StartUsingPageState extends State<StartUsingPage>
     }
 
     final selectedCamera = cameras.firstWhere(
-      (c) => c.lensDirection ==
-          (_isFrontCamera ? CameraLensDirection.front : CameraLensDirection.back),
+      (c) =>
+          c.lensDirection ==
+          (_isFrontCamera
+              ? CameraLensDirection.front
+              : CameraLensDirection.back),
       orElse: () => cameras.first,
     );
 
@@ -357,6 +419,32 @@ class _StartUsingPageState extends State<StartUsingPage>
     try {
       await _cameraController!.initialize();
       if (!mounted) return;
+
+      // ── FIX A + C: start a continuous stream immediately ─────
+      // The stream feeds _latestRawFrame for live skeleton polling.
+      // Capture frames are collected only while _isCapturingStream
+      // is true (set/cleared by _startCaptureSequence / _finishCapture).
+      await _cameraController!.startImageStream((CameraImage image) {
+        // Always keep the freshest frame available for skeleton polling.
+        _latestRawFrame = _extractRawFrame(image);
+
+        // Only collect frames into the capture buffer when actively recording.
+        if (!_isCapturingStream) return;
+
+        _captureFrameTick++;
+        if (_captureFrameTick % _kFrameSkip != 0) return;
+        try {
+          _captureRawFrames.add(_latestRawFrame!);
+          if (mounted) setState(() => _capturedCount = _captureRawFrames.length);
+        } catch (e) {
+          debugPrint("Frame copy error: $e");
+        }
+      });
+      _isStreamActive = true;
+
+      // ── FIX A: start skeleton polling right away ──────────────
+      _startSkeletonPolling();
+
       setState(() {});
     } catch (e) {
       debugPrint("Camera Error: $e");
@@ -380,20 +468,24 @@ class _StartUsingPageState extends State<StartUsingPage>
   // ── Extract raw frame bytes ──────────────────────────────────
   Map<String, dynamic> _extractRawFrame(CameraImage image) {
     final fmt = image.format.group;
-    final w   = image.width;
-    final h   = image.height;
+    final w = image.width;
+    final h = image.height;
     final int sensorOrientation =
         _cameraController!.description.sensorOrientation;
 
     if (fmt == ImageFormatGroup.bgra8888) {
       return {
-        'fmt': 'bgra', 'w': w, 'h': h,
+        'fmt': 'bgra',
+        'w': w,
+        'h': h,
         'bytes': Uint8List.fromList(image.planes[0].bytes),
         'sensorOrientation': sensorOrientation,
       };
     } else {
       return {
-        'fmt': 'yuv', 'w': w, 'h': h,
+        'fmt': 'yuv',
+        'w': w,
+        'h': h,
         'y': Uint8List.fromList(image.planes[0].bytes),
         'yStride': image.planes[0].bytesPerRow,
         'sensorOrientation': sensorOrientation,
@@ -408,41 +500,36 @@ class _StartUsingPageState extends State<StartUsingPage>
 
     _captureRawFrames.clear();
     _captureFrameTick = 0;
-    _capturedCount    = 0;
+    _capturedCount = 0;
 
     setState(() {
-      _isCapturing        = true;
-      _currentStatus      = "Recording...";
+      _isCapturing = true;
+      _currentStatus = "Recording...";
       _captureSecondsLeft = _kMaxCaptureSecs;
-      _leftHandLandmarks  = [];
+      _leftHandLandmarks = [];
       _rightHandLandmarks = [];
     });
 
-    if (!_isStreamActive) {
-      _cameraController!.startImageStream((CameraImage image) {
-        if (!_isCapturingStream) return;
-        _captureFrameTick++;
-        if (_captureFrameTick % _kFrameSkip != 0) return;
-        try {
-          _captureRawFrames.add(_extractRawFrame(image));
-          if (mounted) setState(() => _capturedCount = _captureRawFrames.length);
-        } catch (e) {
-          debugPrint("Frame copy error: $e");
-        }
-      });
-      _isStreamActive = true;
-    }
+    // ── FIX C: stream is already running — just open the gate ───
+    // No need to call startImageStream() here; the stream started
+    // in _initCamera().  Setting _isCapturingStream = true causes
+    // the already-running callback to begin collecting frames.
     _isCapturingStream = true;
 
     _countdownTimer = Timer.periodic(const Duration(milliseconds: 100), (t) {
-      if (!mounted) { t.cancel(); return; }
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
       setState(() {
-        _captureSecondsLeft =
-            (_captureSecondsLeft - 0.1).clamp(0.0, _kMaxCaptureSecs);
+        _captureSecondsLeft = (_captureSecondsLeft - 0.1).clamp(
+          0.0,
+          _kMaxCaptureSecs,
+        );
       });
     });
 
-    _startSkeletonPolling();
+    // ── FIX A: skeleton polling is already running — no restart ─
 
     _captureTimer = Timer(
       Duration(seconds: _kMaxCaptureSecs.toInt()),
@@ -452,15 +539,16 @@ class _StartUsingPageState extends State<StartUsingPage>
 
   Future<void> _finishCapture() async {
     if (!_isCapturing) return;
+
+    // Close the capture gate; leave the image stream running so the
+    // skeleton overlay stays live while the upload is in progress.
     _isCapturingStream = false;
-    _landmarkPollTimer?.cancel();
     _countdownTimer?.cancel();
     _captureTimer?.cancel();
 
-    if (_isStreamActive) {
-      await _cameraController?.stopImageStream();
-      _isStreamActive = false;
-    }
+    // ── FIX C: do NOT stop the image stream here ─────────────────
+    // The stream keeps feeding _latestRawFrame so skeleton polling
+    // continues smoothly during the "Analyzing..." phase and after.
 
     await _processAndUpload();
   }
@@ -468,33 +556,42 @@ class _StartUsingPageState extends State<StartUsingPage>
   // ── Real-time skeleton polling ────────────────────────────────
   void _startSkeletonPolling() {
     _landmarkPollTimer?.cancel();
+    // ── FIX B: 100 ms interval (was 300 ms) ─────────────────────
     _landmarkPollTimer = Timer.periodic(
-      const Duration(milliseconds: 300),
+      const Duration(milliseconds: 100),
       (_) => _pollLandmark(),
     );
   }
 
   Future<void> _pollLandmark() async {
-    if (_captureRawFrames.isEmpty || _isPollingSkeleton) return;
+    // ── FIX A: use _latestRawFrame, not _captureRawFrames ────────
+    // This works before, during, and after capture.
+    if (_latestRawFrame == null || _isPollingSkeleton) return;
     _isPollingSkeleton = true;
     try {
-      final rawFrame  = Map<String, dynamic>.from(_captureRawFrames.last);
+      final rawFrame = Map<String, dynamic>.from(_latestRawFrame!);
       final jpegBytes = await compute(_convertSingleFrame, rawFrame);
       if (jpegBytes == null || !mounted) return;
 
       final request = http.MultipartRequest('POST', Uri.parse(_landmarkUrl));
-      request.files.add(http.MultipartFile.fromBytes(
-        'file', jpegBytes, filename: 'landmark_frame.jpg',
-      ));
-      final response =
-          await request.send().timeout(const Duration(milliseconds: 800));
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'file',
+          jpegBytes,
+          filename: 'landmark_frame.jpg',
+        ),
+      );
+      // ── FIX B: 300 ms timeout (was 800 ms) — local LAN server ──
+      final response = await request.send().timeout(
+        const Duration(milliseconds: 300),
+      );
       if (!mounted) return;
 
       if (response.statusCode == 200) {
         final body = jsonDecode(await response.stream.bytesToString());
         setState(() {
-          _serverReachable    = true;
-          _leftHandLandmarks  = body['left_hand']  as List<dynamic>? ?? [];
+          _serverReachable = true;
+          _leftHandLandmarks = body['left_hand'] as List<dynamic>? ?? [];
           _rightHandLandmarks = body['right_hand'] as List<dynamic>? ?? [];
         });
       }
@@ -511,14 +608,14 @@ class _StartUsingPageState extends State<StartUsingPage>
   // ── Convert + Upload ─────────────────────────────────────────
   Future<void> _processAndUpload() async {
     setState(() {
-      _isCapturing   = false;
-      _isSending     = true;
+      _isCapturing = false;
+      _isSending = true;
       _currentStatus = "Analyzing...";
     });
 
     if (_captureRawFrames.isEmpty) {
       setState(() {
-        _isSending     = false;
+        _isSending = false;
         _currentStatus = "No frames — try again";
       });
       return;
@@ -538,22 +635,17 @@ class _StartUsingPageState extends State<StartUsingPage>
 
       if (allJpegFrames.isEmpty) {
         setState(() {
-          _isSending     = false;
+          _isSending = false;
           _currentStatus = "Conversion failed — retry";
         });
         return;
       }
 
-      // ── FIX 1: Subsample to _kMaxUploadFrames (30) frames ─────
-      // Sending 100 frames → server runs static_image_mode=True on each
-      // → ~30s on HF CPU → hits 30s Flutter timeout.
-      // Sending 30 frames → ~9s → well within timeout.
-      // The server's np.linspace resampler converts 30 → 100 for the model.
+      // Subsample to _kMaxUploadFrames (30) frames
       final List<Uint8List> jpegFrames;
       if (allJpegFrames.length <= _kMaxUploadFrames) {
         jpegFrames = allJpegFrames;
       } else {
-        // Pick _kMaxUploadFrames evenly-spaced indices
         final step = (allJpegFrames.length - 1) / (_kMaxUploadFrames - 1);
         jpegFrames = List.generate(
           _kMaxUploadFrames,
@@ -567,7 +659,7 @@ class _StartUsingPageState extends State<StartUsingPage>
       );
 
       // Write subsampled frames to temp files
-      final tmpDir   = await getTemporaryDirectory();
+      final tmpDir = await getTemporaryDirectory();
       final tmpFiles = <File>[];
       for (int i = 0; i < jpegFrames.length; i++) {
         final f = File(
@@ -579,28 +671,25 @@ class _StartUsingPageState extends State<StartUsingPage>
 
       // POST to /predict
       final request = http.MultipartRequest('POST', Uri.parse(_serverUrl));
-      request.fields['language'] =
-          _languageType == SignLanguageType.asl ? "asl" : "fsl";
+      request.fields['language'] = _languageType == SignLanguageType.asl
+          ? "asl"
+          : "fsl";
       for (final f in tmpFiles) {
         request.files.add(await http.MultipartFile.fromPath('files', f.path));
       }
 
-      // ── FIX 2: Timeout raised 30s → 60s ───────────────────────
-      // Safety net for slow HF days even after frame reduction.
-      // 30 frames × ~300ms + model inference ≈ 12s worst case,
-      // so 60s gives 5× headroom.
       final response = await request.send().timeout(
-        const Duration(seconds: 60),   // was 30
+        const Duration(seconds: 60),
       );
 
       if (response.statusCode == 200) {
-        final json       = jsonDecode(await response.stream.bytesToString());
-        final String word      = json['prediction_label'] ?? "";
+        final json = jsonDecode(await response.stream.bytesToString());
+        final String word = json['prediction_label'] ?? "";
         final double confidence = (json['confidence'] ?? 0.0) * 100;
 
         final landmarks = json['landmarks'] as Map<String, dynamic>? ?? {};
         setState(() {
-          _leftHandLandmarks  = landmarks['left_hand']  as List<dynamic>? ?? [];
+          _leftHandLandmarks = landmarks['left_hand'] as List<dynamic>? ?? [];
           _rightHandLandmarks = landmarks['right_hand'] as List<dynamic>? ?? [];
         });
 
@@ -619,20 +708,18 @@ class _StartUsingPageState extends State<StartUsingPage>
       }
 
       for (final f in tmpFiles) {
-        try { f.deleteSync(); } catch (_) {}
+        try {
+          f.deleteSync();
+        } catch (_) {}
       }
-
     } on SocketException {
       if (mounted) {
         setState(() {
           _serverReachable = false;
-          _currentStatus   = "No server — check IP/firewall";
+          _currentStatus = "No server — check IP/firewall";
         });
       }
     } on TimeoutException {
-      // ── FIX 3: Explicit TimeoutException handler ───────────────
-      // Previously fell into bare catch(e) → showed generic "Error".
-      // Now shows a clear message so the user knows to wait and retry.
       if (mounted) {
         setState(() => _currentStatus = "Server timeout — try again");
       }
@@ -683,7 +770,7 @@ class _StartUsingPageState extends State<StartUsingPage>
     _speechToText = stt.SpeechToText();
     final available = await _speechToText.initialize(
       onStatus: (s) => debugPrint('Speech: $s'),
-      onError:  (e) => debugPrint('Speech error: $e'),
+      onError: (e) => debugPrint('Speech error: $e'),
     );
     if (!mounted) return;
     setState(() => _speechAvailable = available);
@@ -691,7 +778,10 @@ class _StartUsingPageState extends State<StartUsingPage>
 
   Future<void> _startListening() async {
     if (_isListening || !_speechAvailable) return;
-    setState(() { _isListening = true; _recognizedSpeech = ""; });
+    setState(() {
+      _isListening = true;
+      _recognizedSpeech = "";
+    });
     await _speechToText.listen(
       onResult: (result) {
         setState(() => _recognizedSpeech = result.recognizedWords);
@@ -700,7 +790,7 @@ class _StartUsingPageState extends State<StartUsingPage>
           _submitTextToSign(result.recognizedWords);
         }
       },
-      localeId:   _languageType == SignLanguageType.fsl ? 'fil_PH' : 'en_US',
+      localeId: _languageType == SignLanguageType.fsl ? 'fil_PH' : 'en_US',
       listenMode: stt.ListenMode.confirmation,
     );
   }
@@ -811,9 +901,12 @@ class _StartUsingPageState extends State<StartUsingPage>
 
   double get _sentenceTextSize {
     switch (_textSize) {
-      case 'Large':  return 24;
-      case 'Medium': return 20;
-      default:       return 16;
+      case 'Large':
+        return 24;
+      case 'Medium':
+        return 20;
+      default:
+        return 16;
     }
   }
 
@@ -853,7 +946,9 @@ class _StartUsingPageState extends State<StartUsingPage>
 
         // Server status dot (top-center)
         Positioned(
-          top: 10, left: 0, right: 0,
+          top: 10,
+          left: 0,
+          right: 0,
           child: Center(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -865,7 +960,8 @@ class _StartUsingPageState extends State<StartUsingPage>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 8, height: 8,
+                    width: 8,
+                    height: 8,
                     decoration: BoxDecoration(
                       color: _serverReachable
                           ? const Color(0xFF00E676)
@@ -875,7 +971,9 @@ class _StartUsingPageState extends State<StartUsingPage>
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    _serverReachable ? "Server connected" : "Server unreachable",
+                    _serverReachable
+                        ? "Server connected"
+                        : "Server unreachable",
                     style: const TextStyle(color: Colors.white, fontSize: 11),
                   ),
                 ],
@@ -884,7 +982,7 @@ class _StartUsingPageState extends State<StartUsingPage>
           ),
         ),
 
-        // Hand skeleton overlay
+        // Hand skeleton overlay — always visible when landmarks exist
         if (hasLandmarks)
           Positioned.fill(
             child: CustomPaint(
@@ -933,10 +1031,12 @@ class _StartUsingPageState extends State<StartUsingPage>
             ),
           ),
 
-        // Hand detected badge
-        if (_isCapturing && hasLandmarks)
+        // ── FIX A: "Hand detected" badge — shown whenever landmarks
+        // are present, not only during capture ──────────────────────
+        if (hasLandmarks)
           Positioned(
-            bottom: 12, left: 12,
+            bottom: 12,
+            left: 12,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
@@ -947,15 +1047,18 @@ class _StartUsingPageState extends State<StartUsingPage>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 8, height: 8,
+                    width: 8,
+                    height: 8,
                     decoration: const BoxDecoration(
                       color: Color(0xFF00E5FF),
                       shape: BoxShape.circle,
                     ),
                   ),
                   const SizedBox(width: 6),
-                  const Text("Hand detected",
-                      style: TextStyle(color: Colors.white, fontSize: 11)),
+                  const Text(
+                    "Hand detected",
+                    style: TextStyle(color: Colors.white, fontSize: 11),
+                  ),
                 ],
               ),
             ),
@@ -964,7 +1067,8 @@ class _StartUsingPageState extends State<StartUsingPage>
         // Controls row (top-right) — flip + language toggle
         if (!_isCapturing)
           Positioned(
-            top: 10, right: 10,
+            top: 10,
+            right: 10,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -973,7 +1077,10 @@ class _StartUsingPageState extends State<StartUsingPage>
                 CircleAvatar(
                   backgroundColor: Colors.black45,
                   child: IconButton(
-                    icon: const Icon(Icons.flip_camera_ios, color: Colors.white),
+                    icon: const Icon(
+                      Icons.flip_camera_ios,
+                      color: Colors.white,
+                    ),
                     onPressed: _toggleCamera,
                   ),
                 ),
@@ -993,7 +1100,8 @@ class _StartUsingPageState extends State<StartUsingPage>
         // Mic button overlay
         if (!_isCapturing)
           Positioned(
-            bottom: 16, right: 16,
+            bottom: 16,
+            right: 16,
             child: CircleAvatar(
               radius: 28,
               backgroundColor: Colors.black,
@@ -1014,7 +1122,8 @@ class _StartUsingPageState extends State<StartUsingPage>
         // STT listening badge
         if (_isListening)
           Positioned(
-            top: 16, left: 16,
+            top: 16,
+            left: 16,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
@@ -1027,7 +1136,9 @@ class _StartUsingPageState extends State<StartUsingPage>
                   const Icon(Icons.mic, color: Colors.white, size: 16),
                   const SizedBox(width: 8),
                   Text(
-                    _recognizedSpeech.isEmpty ? 'Listening...' : _recognizedSpeech,
+                    _recognizedSpeech.isEmpty
+                        ? 'Listening...'
+                        : _recognizedSpeech,
                     style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ],
@@ -1057,7 +1168,7 @@ class _StartUsingPageState extends State<StartUsingPage>
       runSpacing: 4,
       children: _predictions.map((p) {
         final word = p['word'] as String;
-        final pct  = p['pct']  as double;
+        final pct = p['pct'] as double;
         return RichText(
           text: TextSpan(
             children: [
@@ -1103,7 +1214,9 @@ class _StartUsingPageState extends State<StartUsingPage>
                     : "Type to sign + speak...",
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 10),
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                 ),
@@ -1156,8 +1269,10 @@ class _StartUsingPageState extends State<StartUsingPage>
                     color: Colors.blue,
                   ),
                 ),
-                const Text('Switch',
-                    style: TextStyle(fontSize: 10, color: Colors.grey)),
+                const Text(
+                  'Switch',
+                  style: TextStyle(fontSize: 10, color: Colors.grey),
+                ),
               ],
             ),
           ),
@@ -1193,9 +1308,9 @@ class _StartUsingPageState extends State<StartUsingPage>
 
   @override
   Widget build(BuildContext context) {
-    final theme        = Theme.of(context);
+    final theme = Theme.of(context);
     final surfaceColor = theme.colorScheme.surface;
-    final isSignMode   = _mode == InputMode.signLanguage;
+    final isSignMode = _mode == InputMode.signLanguage;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -1233,7 +1348,8 @@ class _StartUsingPageState extends State<StartUsingPage>
               decoration: BoxDecoration(
                 color: surfaceColor,
                 borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(30)),
+                  top: Radius.circular(30),
+                ),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1269,23 +1385,30 @@ class _StartUsingPageState extends State<StartUsingPage>
                               backgroundColor: Colors.red,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 20, vertical: 10),
+                                horizontal: 20,
+                                vertical: 10,
+                              ),
                             ),
                           )
                         else
                           ElevatedButton.icon(
-                            onPressed: _isSending ? null : _startCaptureSequence,
+                            onPressed: _isSending
+                                ? null
+                                : _startCaptureSequence,
                             icon: const Icon(Icons.videocam, size: 20),
                             label: Text(
                               _isSending ? "ANALYZING..." : "CAPTURE SIGN",
                               style: const TextStyle(fontSize: 12),
                             ),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  _isSending ? Colors.orange : Colors.green,
+                              backgroundColor: _isSending
+                                  ? Colors.orange
+                                  : Colors.green,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 20, vertical: 10),
+                                horizontal: 20,
+                                vertical: 10,
+                              ),
                             ),
                           ),
                         IconButton(
