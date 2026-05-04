@@ -386,8 +386,8 @@ class StartUsingPage extends StatefulWidget {
 class _StartUsingPageState extends State<StartUsingPage>
     with WidgetsBindingObserver {
   // ── Server ──────────────────────────────────────────────────
-  static const String _serverUrl = "http://192.168.254.156:8001/predict";
-  static const String _landmarkUrl = "http://192.168.254.156:8001/landmark";
+  static const String _serverUrl = "http://192.168.1.60:8001/predict";
+  static const String _landmarkUrl = "http://192.168.1.60:8001/landmark";
 
   bool _serverReachable = true;
 
