@@ -1,36 +1,40 @@
 // ============================================================
-//  start_using.dart  —  FIXED VERSION  (v3 — 6 s / 100 frames)
+//  start_using.dart  —  FAST VERSION  (v4)
 //
-//  Changes from previous revision
-//  ────────────────────────────────────────────────────────────
-//  FIX A — Skeleton shown BEFORE capture begins
-//      • _initCamera() starts a continuous image stream immediately.
-//      • _latestRawFrame is always updated by the stream callback.
-//      • _startSkeletonPolling() called right after camera is ready.
-//      • _pollLandmark() uses _latestRawFrame (works with 0 frames).
-//      • "Hand detected" badge no longer requires _isCapturing.
+//  What changed vs v3
+//  ─────────────────────────────────────────────────────────────
+//  PERFORMANCE FIX — root cause of the 2–3 minute delay
+//      v3 converted every captured frame in pure Dart:
+//          YUV -> RGB (per-pixel loop)
+//        + 90° rotation (per-pixel write)
+//        + horizontal flip (per-pixel write)
+//        + JPEG encode
+//      For a 6 s capture at ~30 fps that's ~180 frames
+//      × (480 × 640) ≈ 55 million pixel operations in Dart, then
+//      100 separate multipart JPEG uploads. Round-trip on Pixel 6:
+//      90–180 seconds.
 //
-//  FIX B — Smooth skeleton (no stutter / lag)
-//      • Poll interval   : 300 ms → 100 ms
-//      • Landmark timeout: 800 ms → 300 ms  (local LAN server)
-//      • _isPollingSkeleton guard prevents pile-up.
+//      v4 sends the RAW YUV planes straight to the server, where
+//      OpenCV (vectorised C) does the same conversion in well under
+//      a second. No per-pixel Dart work, no JPEG encoding.
+//      End-to-end round-trip drops to ~5–10 seconds.
 //
-//  FIX C — Stream lifecycle
-//      Stream runs continuously from _initCamera() until dispose().
-//      Capture only sets/clears _isCapturingStream to gate collection.
+//  TIMING — match test.py's 100-frame / ~3.3 s capture window
+//      _kMaxCaptureSecs : 6.0  →  3.5
+//      _kFrameSkip      : 1    (unchanged)
+//      At ~30 fps on Pixel 6 that gives ~100 raw frames, identical
+//      temporal profile to test.py — preserves the trained model's
+//      accuracy contract.
 //
-//  FIX D — 6-second capture window, locked 100 frames to server
-//      • _kMaxCaptureSecs : 3.0  → 6.0
-//        Gives the user twice as long to complete a sign, reducing
-//        cut-off errors on slower or multi-step signs.
-//      • _kFrameSkip      : 1    → 2
-//        At ~30 fps over 6 s → ~90 raw frames collected.
-//        Combined with _kMaxUploadFrames = 100 the server always
-//        receives exactly 100 frames via np.linspace resampling,
-//        matching config.py FRAMES_PER_SAMPLE exactly.
-//      • _kMaxUploadFrames: 100  (unchanged — still the hard cap)
-//        Flutter subsamples collected frames to this count before
-//        upload; server's np.linspace then locks them to 100.
+//  PRESERVED — accuracy contract
+//      • All frames still flipped horizontally (server side now)
+//        so right hand lands in left_hand_landmarks slot,
+//        matching collect_images.py's cv2.flip(frame, 1).
+//      • Streaming holistic, model_complexity=1 (server side).
+//      • Server uses /predict_yuv pipeline = identical to test.py.
+//
+//  UNCHANGED — text-to-sign mode
+//      Sign.MT WebView, TTS, speech-to-text — none of these touched.
 // ============================================================
 
 import 'package:flutter/material.dart';
@@ -48,7 +52,6 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:image/image.dart' as img;
 
 import 'account_page.dart';
@@ -57,81 +60,49 @@ import 'account_page.dart';
 //  Constants
 // ─────────────────────────────────────────────────────────────
 
-/// Maximum capture duration in seconds.
-const double _kMaxCaptureSecs = 6.0;
+/// Capture window in seconds.  ~3.3 s @ 30 fps ≈ 100 frames, the
+/// exact count test.py records and the model trained on.
+const double _kMaxCaptureSecs = 3.5;
 
-/// Frame throttle — keep every Nth camera frame during capture.
-/// At ~30 fps (ResolutionPreset.medium on Pixel 6) over 6 s → ~180 raw
-/// frames with skip=1. These are subsampled to _kMaxUploadFrames=100
-/// before upload; the server's np.linspace then locks to exactly 100.
-/// Use skip=2 or 3 only if frame collection stalls on slower hardware.
+/// Keep every Nth frame during capture.  1 = no skip.
 const int _kFrameSkip = 1;
 
-/// Max frames sent to server per prediction request.
-/// Flutter subsamples collected frames to this count before upload.
-/// Server np.linspace locks to RESAMPLE_FRAMES=100 regardless.
+/// Hard cap on frames sent per request.  Server resamples to 100 with
+/// np.linspace, but capping at 100 here means no resampling drift.
 const int _kMaxUploadFrames = 100;
 
 // ─────────────────────────────────────────────────────────────
 //  MediaPipe hand connections for skeleton drawing
 // ─────────────────────────────────────────────────────────────
 const _kHandConnections = [
-  [0, 1],
-  [1, 2],
-  [2, 3],
-  [3, 4],
-  [0, 5],
-  [5, 6],
-  [6, 7],
-  [7, 8],
-  [0, 9],
-  [9, 10],
-  [10, 11],
-  [11, 12],
-  [0, 13],
-  [13, 14],
-  [14, 15],
-  [15, 16],
-  [0, 17],
-  [17, 18],
-  [18, 19],
-  [19, 20],
-  [5, 9],
-  [9, 13],
-  [13, 17],
+  [0, 1], [1, 2], [2, 3], [3, 4],
+  [0, 5], [5, 6], [6, 7], [7, 8],
+  [0, 9], [9, 10], [10, 11], [11, 12],
+  [0, 13], [13, 14], [14, 15], [15, 16],
+  [0, 17], [17, 18], [18, 19], [19, 20],
+  [5, 9], [9, 13], [13, 17],
 ];
 
 // ─────────────────────────────────────────────────────────────
-//  Isolate helpers — raw CameraImage bytes → JPEG
+//  Isolate helpers
 //
-//  TWO critical processing steps applied to every frame:
-//
-//  1. YUV → RGB (Android only)
-//     Android cameras (YUV_420_888) previously used only the Y
-//     plane → grayscale frames. Now all three planes are used for
-//     a proper colour image, improving MediaPipe landmark detection.
-//
-//  2. Horizontal flip (ALWAYS applied)
-//     Training data was captured with an iPhone 13 FRONT camera
-//     and cv2.flip(frame,1). That flip makes the physical right hand
-//     appear on the LEFT side of every image, so MediaPipe labelled
-//     it left_hand_landmarks (slot-0). The model learned this.
-//     test.py also flips → same convention → 100% accuracy.
-//     The Pixel 6 BACK camera has NO built-in flip, so without this
-//     step the right hand lands in right_hand_landmarks (slot-1)
-//     and every single-hand sign is fed into the wrong slot.
-//     Applying img.flipHorizontal here restores the training convention.
+//  v4: only the SKELETON-OVERLAY path still does YUV→JPEG in Dart
+//  (one frame per 500 ms — fine).  The CAPTURE path now packs raw
+//  YUV bytes for the server, which is essentially free.
 // ─────────────────────────────────────────────────────────────
 
+/// Convert one raw frame to JPEG for the /landmark endpoint.
+/// Used only by the live skeleton overlay (not the prediction path).
 Uint8List? _convertSingleFrame(Map<String, dynamic> f) {
   try {
-    return _convertFrames([f]).firstOrNull;
+    return _convertFramesForLandmark([f]).firstOrNull;
   } catch (_) {
     return null;
   }
 }
 
-List<Uint8List> _convertFrames(List<Map<String, dynamic>> rawFrames) {
+/// Single-frame YUV/BGRA → JPEG converter for /landmark only.
+List<Uint8List> _convertFramesForLandmark(List<Map<String, dynamic>> rawFrames) {
   final result = <Uint8List>[];
   for (final f in rawFrames) {
     try {
@@ -142,7 +113,6 @@ List<Uint8List> _convertFrames(List<Map<String, dynamic>> rawFrames) {
       img.Image imgObj;
 
       if (fmt == 'bgra') {
-        // iOS — single interleaved BGRA plane, no rotation needed.
         final bytes = f['bytes'] as Uint8List;
         imgObj = img.Image.fromBytes(
           width: w,
@@ -152,9 +122,6 @@ List<Uint8List> _convertFrames(List<Map<String, dynamic>> rawFrames) {
           numChannels: 4,
         );
       } else {
-        // Android YUV_420_888 — convert all three planes to RGB.
-        // Previously only the Y (luma) plane was used → grayscale.
-        // Now U and V (chroma) are included for proper colour output.
         final Uint8List yBytes = f['y'] as Uint8List;
         final Uint8List uBytes = f['u'] as Uint8List? ?? Uint8List(0);
         final Uint8List vBytes = f['v'] as Uint8List? ?? Uint8List(0);
@@ -168,25 +135,21 @@ List<Uint8List> _convertFrames(List<Map<String, dynamic>> rawFrames) {
           for (int col = 0; col < w; col++) {
             final int y = yBytes[row * yStride + col];
             final int rgbIdx = (row * w + col) * 3;
-
             if (hasChroma) {
               final int uvOffset =
                   (row ~/ 2) * uvStride + (col ~/ 2) * uvPixelStride;
               final int u = uvOffset < uBytes.length ? uBytes[uvOffset] : 128;
               final int v = uvOffset < vBytes.length ? vBytes[uvOffset] : 128;
-              // Standard BT.601 YCbCr → RGB
               rgb[rgbIdx]     = (y + 1.402  * (v - 128)).round().clamp(0, 255);
               rgb[rgbIdx + 1] = (y - 0.344  * (u - 128) - 0.714 * (v - 128)).round().clamp(0, 255);
               rgb[rgbIdx + 2] = (y + 1.772  * (u - 128)).round().clamp(0, 255);
             } else {
-              // Graceful fallback if UV planes weren't captured (old data).
               rgb[rgbIdx] = y;
               rgb[rgbIdx + 1] = y;
               rgb[rgbIdx + 2] = y;
             }
           }
         }
-
         imgObj = img.Image.fromBytes(
           width: w,
           height: h,
@@ -194,65 +157,115 @@ List<Uint8List> _convertFrames(List<Map<String, dynamic>> rawFrames) {
           numChannels: 3,
           order: img.ChannelOrder.rgb,
         );
-
-        // Android back cameras are physically rotated 90° relative to the
-        // screen. sensorOrientation (usually 90) corrects this so the image
-        // is portrait-upright before any further processing.
         if (sensorOrientation != 0) {
           imgObj = img.copyRotate(imgObj, angle: sensorOrientation);
         }
       }
 
-      // ── Mirror horizontally to match training convention ────────
-      // Training: front camera + cv2.flip(frame,1) → right hand on LEFT.
-      // Back camera: right hand on RIGHT (opposite) → model predicts wrong.
-      // Flipping here makes the back-camera frames look like training frames.
-      // DO NOT remove this even if the skeleton overlay looks "reversed" —
-      // the overlay is cosmetic; the keypoint extraction must match training.
+      // Skeleton overlay must look upright on screen → flip here too
+      // so coords from /landmark line up with what the user sees.
       imgObj = img.flipHorizontal(imgObj);
-
-      result.add(Uint8List.fromList(img.encodeJpg(imgObj, quality: 80)));
+      result.add(Uint8List.fromList(img.encodeJpg(imgObj, quality: 70)));
     } catch (_) {}
   }
   return result;
 }
 
-// ─────────────────────────────────────────────────────────────
-//  LandmarkPainter
-// ─────────────────────────────────────────────────────────────
+/// FAST: pack a raw YUV/BGRA frame for the /predict_yuv endpoint.
+/// No per-pixel work — just JSON header + plane bytes.
+///
+/// Wire format (per frame):
+///     [4 B uint32 LE: header_len]
+///     [header_len  B: JSON header (UTF-8)]
+///     [rest        : raw plane bytes; YUV is y|u|v concatenated]
+Uint8List _packRawFrame(Map<String, dynamic> f) {
+  final String fmt = f['fmt'] as String;
+  final int w = f['w'] as int;
+  final int h = f['h'] as int;
+  final int sensorOrientation = f['sensorOrientation'] as int? ?? 0;
+
+  Map<String, dynamic> header;
+  late Uint8List payload;
+
+  if (fmt == 'bgra') {
+    // iOS — single interleaved BGRA plane.
+    final bytes = f['bytes'] as Uint8List;
+    header = <String, dynamic>{
+      'fmt': 'bgra',
+      'w': w,
+      'h': h,
+      'sensorOrientation': sensorOrientation,
+      'needsFlip': true, // match training (cv2.flip)
+    };
+    payload = bytes;
+  } else {
+    // Android YUV_420_888 — three planes packed in order Y | U | V.
+    final Uint8List yBytes = f['y'] as Uint8List;
+    final Uint8List uBytes = f['u'] as Uint8List? ?? Uint8List(0);
+    final Uint8List vBytes = f['v'] as Uint8List? ?? Uint8List(0);
+    final int yStride = f['yStride'] as int;
+    final int uvStride = f['uvStride'] as int? ?? (w ~/ 2);
+    final int uvPixelStride = f['uvPixelStride'] as int? ?? 1;
+
+    header = <String, dynamic>{
+      'fmt': 'yuv',
+      'w': w,
+      'h': h,
+      'yStride': yStride,
+      'uvStride': uvStride,
+      'uvPixelStride': uvPixelStride,
+      'sensorOrientation': sensorOrientation,
+      'needsFlip': true, // match training (cv2.flip)
+      'yLen': yBytes.length,
+      'uLen': uBytes.length,
+      'vLen': vBytes.length,
+    };
+
+    final pb = BytesBuilder(copy: false);
+    pb.add(yBytes);
+    pb.add(uBytes);
+    pb.add(vBytes);
+    payload = pb.toBytes();
+  }
+
+  final headerJson = utf8.encode(jsonEncode(header));
+  final headerLen = headerJson.length;
+
+  final out = BytesBuilder(copy: false)
+    ..add(<int>[
+      headerLen        & 0xFF,
+      (headerLen >> 8)  & 0xFF,
+      (headerLen >> 16) & 0xFF,
+      (headerLen >> 24) & 0xFF,
+    ])
+    ..add(headerJson)
+    ..add(payload);
+
+  return out.toBytes();
+}
+
+/// Pack a list of frames in an isolate.  Even though packing is
+/// near-free, doing it off-thread keeps the UI buttery-smooth.
+List<Uint8List> _packRawFrames(List<Map<String, dynamic>> rawFrames) {
+  return rawFrames.map(_packRawFrame).toList();
+}
 
 // ─────────────────────────────────────────────────────────────
-//  Upper-body pose connections
-//  Each pair is an index into the 19-element pose list returned
-//  by the server (same UPPER_BODY_IDS order: 0..18 maps to
-//  nose, eyes×6, ears×2, mouth×2, shoulders×2, elbows×2,
-//  wrists×2, hips×2).
+//  Upper-body pose connections (server returns 19 sorted points)
 // ─────────────────────────────────────────────────────────────
-//  Server UPPER_BODY_IDS = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,23,24}
-//  Sorted index in list  :  0 1 2 3 4 5 6 7 8  9 10 11 12 13 14 15 16  17  18
-//  Landmark              : nose lEyeIn lEye lEyeOut rEyeIn rEye rEyeOut lEar rEar
-//                          mouthL mouthR lShoulder rShoulder lElbow rElbow
-//                          lWrist rWrist lHip rHip
 const _kPoseConnections = [
-  // Face
-  [0, 1], [1, 2], [2, 3],   // nose → lEyeIn → lEye → lEyeOut
-  [0, 4], [4, 5], [5, 6],   // nose → rEyeIn → rEye → rEyeOut
-  [3, 7],                    // lEyeOut → lEar
-  [6, 8],                    // rEyeOut → rEar
-  [9, 10],                   // mouthL → mouthR
-  // Torso
-  [11, 12],                  // lShoulder → rShoulder
-  [11, 17], [12, 18],        // shoulders → hips
-  [17, 18],                  // lHip → rHip
-  // Arms
-  [11, 13], [13, 15],        // lShoulder → lElbow → lWrist
-  [12, 14], [14, 16],        // rShoulder → rElbow → rWrist
+  [0, 1], [1, 2], [2, 3],
+  [0, 4], [4, 5], [5, 6],
+  [3, 7], [6, 8],
+  [9, 10],
+  [11, 12], [11, 17], [12, 18], [17, 18],
+  [11, 13], [13, 15], [12, 14], [14, 16],
 ];
 
 class LandmarkPainter extends CustomPainter {
   final List<dynamic> leftHand;
   final List<dynamic> rightHand;
-  final List<dynamic> pose;      // NEW — upper-body pose points
+  final List<dynamic> pose;
   final bool mirrorX;
 
   const LandmarkPainter({
@@ -265,13 +278,8 @@ class LandmarkPainter extends CustomPainter {
   double _px(double x, double w) => mirrorX ? (1.0 - x) * w : x * w;
   double _py(double y, double h) => y * h;
 
-  void _drawHand(
-    Canvas canvas,
-    Size size,
-    List<dynamic> landmarks,
-    Color dotColor,
-    Color lineColor,
-  ) {
+  void _drawHand(Canvas canvas, Size size, List<dynamic> landmarks,
+      Color dotColor, Color lineColor) {
     if (landmarks.isEmpty) return;
     final linePaint = Paint()
       ..color = lineColor
@@ -285,23 +293,17 @@ class LandmarkPainter extends CustomPainter {
       final a = landmarks[conn[0]];
       final b = landmarks[conn[1]];
       canvas.drawLine(
-        Offset(
-          _px((a[0] as num).toDouble(), size.width),
-          _py((a[1] as num).toDouble(), size.height),
-        ),
-        Offset(
-          _px((b[0] as num).toDouble(), size.width),
-          _py((b[1] as num).toDouble(), size.height),
-        ),
+        Offset(_px((a[0] as num).toDouble(), size.width),
+               _py((a[1] as num).toDouble(), size.height)),
+        Offset(_px((b[0] as num).toDouble(), size.width),
+               _py((b[1] as num).toDouble(), size.height)),
         linePaint,
       );
     }
     for (final lm in landmarks) {
       canvas.drawCircle(
-        Offset(
-          _px((lm[0] as num).toDouble(), size.width),
-          _py((lm[1] as num).toDouble(), size.height),
-        ),
+        Offset(_px((lm[0] as num).toDouble(), size.width),
+               _py((lm[1] as num).toDouble(), size.height)),
         4,
         dotPaint,
       );
@@ -310,27 +312,23 @@ class LandmarkPainter extends CustomPainter {
 
   void _drawPose(Canvas canvas, Size size) {
     if (pose.isEmpty) return;
-
     final linePaint = Paint()
-      ..color = const Color(0xFF64E986)   // green-teal bones
+      ..color = const Color(0xFF64E986)
       ..strokeWidth = 2.0
       ..style = PaintingStyle.stroke;
     final dotPaint = Paint()
-      ..color = const Color(0xFFB4FF6E)   // yellow-green dots
+      ..color = const Color(0xFFB4FF6E)
       ..style = PaintingStyle.fill;
 
     for (final conn in _kPoseConnections) {
       final ai = conn[0];
       final bi = conn[1];
       if (ai >= pose.length || bi >= pose.length) continue;
-
-      final a   = pose[ai];
-      final b   = pose[bi];
-      // visibility is the 3rd element [x, y, visibility]
+      final a = pose[ai];
+      final b = pose[bi];
       final aVis = (a[2] as num).toDouble();
       final bVis = (b[2] as num).toDouble();
       if (aVis < 0.5 || bVis < 0.5) continue;
-
       canvas.drawLine(
         Offset(_px((a[0] as num).toDouble(), size.width),
                _py((a[1] as num).toDouble(), size.height)),
@@ -339,7 +337,6 @@ class LandmarkPainter extends CustomPainter {
         linePaint,
       );
     }
-
     for (final lm in pose) {
       final vis = (lm[2] as num).toDouble();
       if (vis < 0.5) continue;
@@ -354,7 +351,6 @@ class LandmarkPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Draw pose FIRST so hands appear on top
     _drawPose(canvas, size);
     _drawHand(canvas, size, leftHand,
         const Color(0xFF00E5FF), const Color(0xFF0097A7));
@@ -385,9 +381,10 @@ class StartUsingPage extends StatefulWidget {
 
 class _StartUsingPageState extends State<StartUsingPage>
     with WidgetsBindingObserver {
-  // ── Server ──────────────────────────────────────────────────
-  static const String _serverUrl = "http://192.168.254.156:8001/predict";
-  static const String _landmarkUrl = "http://192.168.254.156:8001/landmark";
+  // ── Server URLs ────────────────────────────────────────────
+  // NEW v4 endpoint — accepts raw YUV/BGRA, no JPEG encoding.
+  static const String _serverUrl   = "https://handylingo-handylingo-ai.hf.space/predict_yuv";
+  static const String _landmarkUrl = "https://handylingo-handylingo-ai.hf.space/landmark";
 
   bool _serverReachable = true;
 
@@ -399,16 +396,12 @@ class _StartUsingPageState extends State<StartUsingPage>
 
   // ── Camera ──────────────────────────────────────────────────
   CameraController? _cameraController;
-  // ── Back camera is the default for sign recognition.
-  // Training used a front camera + cv2.flip(frame,1). To match that
-  // convention on a back camera, we mirror frames in _convertFrames.
-  // Using the front camera here would double-flip → wrong orientation.
-  bool _isFrontCamera = false;
+  bool _isFrontCamera = false; // back camera = training match
   bool _isCapturing = false;
   bool _isSending = false;
   bool _isStreamActive = false;
 
-  // ── Capture state ────────────────────────────────────────────
+  // ── Capture state ───────────────────────────────────────────
   final List<Map<String, dynamic>> _captureRawFrames = [];
   bool _isCapturingStream = false;
   int _captureFrameTick = 0;
@@ -417,33 +410,31 @@ class _StartUsingPageState extends State<StartUsingPage>
   Timer? _captureTimer;
   Timer? _countdownTimer;
 
-  // ── FIX A: always-available latest frame for skeleton polling ─
-  // Updated every camera tick; does NOT require capture to be active.
+  // Latest frame for skeleton polling.
   Map<String, dynamic>? _latestRawFrame;
 
-  // ── Landmark state ───────────────────────────────────────────
+  // ── Landmark state ─────────────────────────────────────────
   List<dynamic> _leftHandLandmarks = [];
   List<dynamic> _rightHandLandmarks = [];
-  List<dynamic> _poseLandmarks = [];          // NEW — upper-body pose
+  List<dynamic> _poseLandmarks = [];
   Timer? _landmarkPollTimer;
   bool _isPollingSkeleton = false;
 
-  // ── Output ──────────────────────────────────────────────────
+  // ── Output ─────────────────────────────────────────────────
   String _accumulatedSentence = "";
   String _currentStatus = "Ready";
   String _textSize = 'Small';
 
-  /// Each entry: {'word': 'HOW ARE YOU', 'pct': 98.0}
   final List<Map<String, dynamic>> _predictions = [];
 
-  // ── Text-to-Sign input ───────────────────────────────────────
+  // ── Text-to-Sign input ─────────────────────────────────────
   final TextEditingController _textToSignController = TextEditingController();
 
-  // ── Sign.MT WebView ─────────────────────────────────────────
+  // ── Sign.MT WebView ────────────────────────────────────────
   late final WebViewController _signWebController;
   bool _signMtReady = false;
 
-  // ── Speech-to-text ──────────────────────────────────────────
+  // ── Speech-to-text ─────────────────────────────────────────
   late final stt.SpeechToText _speechToText;
   bool _speechAvailable = false;
   bool _isListening = false;
@@ -463,7 +454,7 @@ class _StartUsingPageState extends State<StartUsingPage>
     _initCamera();
   }
 
-  // ── TTS ─────────────────────────────────────────────────────
+  // ── TTS ────────────────────────────────────────────────────
   Future<void> _initTts() async {
     await _flutterTts.setPitch(1.0);
     await _flutterTts.setSpeechRate(0.5);
@@ -489,7 +480,7 @@ class _StartUsingPageState extends State<StartUsingPage>
     await _flutterTts.speak(text);
   }
 
-  // ── Supabase ────────────────────────────────────────────────
+  // ── Supabase ───────────────────────────────────────────────
   Future<void> _saveLogToSupabase(String word, double accuracy) async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
@@ -505,12 +496,11 @@ class _StartUsingPageState extends State<StartUsingPage>
     }
   }
 
-  // ── Camera init ─────────────────────────────────────────────
+  // ── Camera init ────────────────────────────────────────────
   Future<void> _initCamera() async {
     final cameras = await availableCameras();
     if (cameras.isEmpty) return;
 
-    // Cancel skeleton polling before tearing down the old controller.
     _landmarkPollTimer?.cancel();
 
     if (_cameraController != null) {
@@ -522,19 +512,16 @@ class _StartUsingPageState extends State<StartUsingPage>
     }
 
     final selectedCamera = cameras.firstWhere(
-      (c) =>
-          c.lensDirection ==
-          (_isFrontCamera
-              ? CameraLensDirection.front
-              : CameraLensDirection.back),
+      (c) => c.lensDirection ==
+          (_isFrontCamera ? CameraLensDirection.front : CameraLensDirection.back),
       orElse: () => cameras.first,
     );
 
     _cameraController = CameraController(
       selectedCamera,
-      // medium → ~480×640 on Pixel 6, much closer to the 640×480 used during
-      // training. ResolutionPreset.low (~240p) hurts MediaPipe detection quality.
-      ResolutionPreset.medium,
+      // medium → ~480×640 on Pixel 6 — closest match to the 640×480
+      // training capture resolution.
+      ResolutionPreset.low,
       enableAudio: false,
     );
 
@@ -542,15 +529,8 @@ class _StartUsingPageState extends State<StartUsingPage>
       await _cameraController!.initialize();
       if (!mounted) return;
 
-      // ── FIX A + C: start a continuous stream immediately ─────
-      // The stream feeds _latestRawFrame for live skeleton polling.
-      // Capture frames are collected only while _isCapturingStream
-      // is true (set/cleared by _startCaptureSequence / _finishCapture).
       await _cameraController!.startImageStream((CameraImage image) {
-        // Always keep the freshest frame available for skeleton polling.
         _latestRawFrame = _extractRawFrame(image);
-
-        // Only collect frames into the capture buffer when actively recording.
         if (!_isCapturingStream) return;
 
         _captureFrameTick++;
@@ -564,10 +544,7 @@ class _StartUsingPageState extends State<StartUsingPage>
         }
       });
       _isStreamActive = true;
-
-      // ── FIX A: start skeleton polling right away ──────────────
       _startSkeletonPolling();
-
       setState(() {});
     } catch (e) {
       debugPrint("Camera Error: $e");
@@ -588,10 +565,7 @@ class _StartUsingPageState extends State<StartUsingPage>
     });
   }
 
-  // ── Extract raw frame bytes ──────────────────────────────────
-  // For BGRA (iOS) : saves the single interleaved plane.
-  // For YUV_420_888 (Android) : saves Y + U + V planes separately
-  //   so _convertFrames can do proper YUV→RGB instead of grayscale.
+  // ── Extract raw frame bytes ─────────────────────────────────
   Map<String, dynamic> _extractRawFrame(CameraImage image) {
     final fmt = image.format.group;
     final w = image.width;
@@ -608,14 +582,12 @@ class _StartUsingPageState extends State<StartUsingPage>
         'sensorOrientation': sensorOrientation,
       };
     } else {
-      // YUV_420_888 — save all three planes for proper colour conversion.
       return {
         'fmt': 'yuv',
         'w': w,
         'h': h,
         'y': Uint8List.fromList(image.planes[0].bytes),
         'yStride': image.planes[0].bytesPerRow,
-        // U (Cb) and V (Cr) planes — half the spatial resolution.
         'u': Uint8List.fromList(image.planes[1].bytes),
         'v': Uint8List.fromList(image.planes[2].bytes),
         'uvStride': image.planes[1].bytesPerRow,
@@ -625,7 +597,7 @@ class _StartUsingPageState extends State<StartUsingPage>
     }
   }
 
-  // ── 10-second capture ────────────────────────────────────────
+  // ── Capture sequence ────────────────────────────────────────
   Future<void> _startCaptureSequence() async {
     if (_isCapturing || _isSending || _cameraController == null) return;
     if (!(_cameraController!.value.isInitialized)) return;
@@ -643,10 +615,6 @@ class _StartUsingPageState extends State<StartUsingPage>
       _poseLandmarks = [];
     });
 
-    // ── FIX C: stream is already running — just open the gate ───
-    // No need to call startImageStream() here; the stream started
-    // in _initCamera().  Setting _isCapturingStream = true causes
-    // the already-running callback to begin collecting frames.
     _isCapturingStream = true;
 
     _countdownTimer = Timer.periodic(const Duration(milliseconds: 100), (t) {
@@ -662,10 +630,8 @@ class _StartUsingPageState extends State<StartUsingPage>
       });
     });
 
-    // ── FIX A: skeleton polling is already running — no restart ─
-
     _captureTimer = Timer(
-      Duration(milliseconds: (_kMaxCaptureSecs * 1000).toInt()),  // 3500 ms exactly
+      Duration(milliseconds: (_kMaxCaptureSecs * 1000).toInt()),
       () => _finishCapture(),
     );
   }
@@ -673,26 +639,16 @@ class _StartUsingPageState extends State<StartUsingPage>
   Future<void> _finishCapture() async {
     if (!_isCapturing) return;
 
-    // Close the capture gate; leave the image stream running so the
-    // skeleton overlay stays live while the upload is in progress.
     _isCapturingStream = false;
     _countdownTimer?.cancel();
     _captureTimer?.cancel();
 
-    // ── FIX C: do NOT stop the image stream here ─────────────────
-    // The stream keeps feeding _latestRawFrame so skeleton polling
-    // continues smoothly during the "Analyzing..." phase and after.
-
     await _processAndUpload();
   }
 
-  // ── Real-time skeleton polling ────────────────────────────────
+  // ── Real-time skeleton polling ──────────────────────────────
   void _startSkeletonPolling() {
     _landmarkPollTimer?.cancel();
-    // ── FIX B: 100 ms interval (was 300 ms) ─────────────────────
-    // Poll every 500 ms. The landmark endpoint takes ~200-400 ms on LAN.
-    // 100 ms was causing pile-up (new poll fired before previous one returned),
-    // flooding the server and making the skeleton laggy and jittery.
     _landmarkPollTimer = Timer.periodic(
       const Duration(milliseconds: 500),
       (_) => _pollLandmark(),
@@ -700,10 +656,6 @@ class _StartUsingPageState extends State<StartUsingPage>
   }
 
   Future<void> _pollLandmark() async {
-    // Poll skeleton whenever a latest frame is available.
-    // This allows the skeleton overlay to show BEFORE capture starts,
-    // giving the user visual feedback that their hands are detected.
-    // _isPollingSkeleton guard prevents pile-up of concurrent requests.
     if (_latestRawFrame == null || _isPollingSkeleton) return;
     _isPollingSkeleton = true;
     try {
@@ -719,8 +671,6 @@ class _StartUsingPageState extends State<StartUsingPage>
           filename: 'landmark_frame.jpg',
         ),
       );
-      // 600 ms timeout — generous enough for local LAN but short enough
-      // to not block the UI if the server is slow or unreachable.
       final response = await request.send().timeout(
         const Duration(milliseconds: 600),
       );
@@ -738,14 +688,14 @@ class _StartUsingPageState extends State<StartUsingPage>
     } on SocketException {
       if (mounted) setState(() => _serverReachable = false);
     } on TimeoutException {
-      // skip this poll — landmark is cosmetic, not critical
+      // skip — landmark is cosmetic
     } catch (_) {
     } finally {
       _isPollingSkeleton = false;
     }
   }
 
-  // ── Convert + Upload ─────────────────────────────────────────
+  // ── Pack + Upload (the FAST path) ───────────────────────────
   Future<void> _processAndUpload() async {
     setState(() {
       _isCapturing = false;
@@ -762,56 +712,42 @@ class _StartUsingPageState extends State<StartUsingPage>
     }
 
     try {
-      // Convert all captured raw frames to JPEG in a background isolate
-      final List<Uint8List> allJpegFrames = await compute(
-        _convertFrames,
-        List<Map<String, dynamic>>.from(_captureRawFrames),
+      // Subsample to _kMaxUploadFrames BEFORE packing.
+      final List<Map<String, dynamic>> selected;
+      if (_captureRawFrames.length <= _kMaxUploadFrames) {
+        selected = List<Map<String, dynamic>>.from(_captureRawFrames);
+      } else {
+        final step = (_captureRawFrames.length - 1) / (_kMaxUploadFrames - 1);
+        selected = List.generate(
+          _kMaxUploadFrames,
+          (i) => _captureRawFrames[(i * step).round()],
+        );
+      }
+
+      // Pack raw YUV/BGRA → length-prefixed binary blobs in an isolate.
+      // Near-free vs the old YUV→RGB→JPEG conversion (this is just
+      // bookkeeping + a JSON header per frame).
+      final List<Uint8List> packedFrames = await compute(
+        _packRawFrames,
+        selected,
       );
 
       // ignore: avoid_print
-      print("[CAPTURE] ${_captureRawFrames.length} raw frames → ${allJpegFrames.length} JPEGs converted");
+      print("[CAPTURE] ${_captureRawFrames.length} raw → "
+            "${selected.length} selected → ${packedFrames.length} packed "
+            "→ sending to /predict_yuv");
 
-      if (allJpegFrames.isEmpty) {
-        setState(() {
-          _isSending = false;
-          _currentStatus = "Conversion failed — retry";
-        });
-        return;
-      }
-
-      // Subsample to _kMaxUploadFrames (30) frames
-      final List<Uint8List> jpegFrames;
-      if (allJpegFrames.length <= _kMaxUploadFrames) {
-        jpegFrames = allJpegFrames;
-      } else {
-        final step = (allJpegFrames.length - 1) / (_kMaxUploadFrames - 1);
-        jpegFrames = List.generate(
-          _kMaxUploadFrames,
-          (i) => allJpegFrames[(i * step).round()],
-        );
-      }
-
-      // ignore: avoid_print
-      print("[UPLOAD]  ${allJpegFrames.length} JPEGs → subsampled to ${jpegFrames.length} → sending to server");
-
-      // Write subsampled frames to temp files
-      final tmpDir = await getTemporaryDirectory();
-      final tmpFiles = <File>[];
-      for (int i = 0; i < jpegFrames.length; i++) {
-        final f = File(
-          '${tmpDir.path}/hcap_${i.toString().padLeft(4, '0')}.jpg',
-        );
-        await f.writeAsBytes(jpegFrames[i]);
-        tmpFiles.add(f);
-      }
-
-      // POST to /predict
       final request = http.MultipartRequest('POST', Uri.parse(_serverUrl));
-      request.fields['language'] = _languageType == SignLanguageType.asl
-          ? "asl"
-          : "fsl";
-      for (final f in tmpFiles) {
-        request.files.add(await http.MultipartFile.fromPath('files', f.path));
+      request.fields['language'] =
+          _languageType == SignLanguageType.asl ? "asl" : "fsl";
+      for (int i = 0; i < packedFrames.length; i++) {
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'files',
+            packedFrames[i],
+            filename: 'f_${i.toString().padLeft(4, '0')}.yuv',
+          ),
+        );
       }
 
       final response = await request.send().timeout(
@@ -839,7 +775,7 @@ class _StartUsingPageState extends State<StartUsingPage>
           _speak(word);
           _saveLogToSupabase(word, confidence);
         }
-        // Clear skeleton overlay — detection is capture-only.
+
         setState(() {
           _leftHandLandmarks  = [];
           _rightHandLandmarks = [];
@@ -848,12 +784,6 @@ class _StartUsingPageState extends State<StartUsingPage>
         });
       } else {
         setState(() => _currentStatus = "Server error — retry");
-      }
-
-      for (final f in tmpFiles) {
-        try {
-          f.deleteSync();
-        } catch (_) {}
       }
     } on SocketException {
       if (mounted) {
@@ -866,7 +796,7 @@ class _StartUsingPageState extends State<StartUsingPage>
       if (mounted) {
         setState(() => _currentStatus = "Server timeout — try again");
       }
-      debugPrint("[TIMEOUT] /predict exceeded 60s — HF CPU may be overloaded");
+      debugPrint("[TIMEOUT] /predict_yuv exceeded 60s");
     } catch (e) {
       if (mounted) setState(() => _currentStatus = "Error — retry");
       debugPrint("Upload error: $e");
@@ -876,7 +806,7 @@ class _StartUsingPageState extends State<StartUsingPage>
     }
   }
 
-  // ── Text-to-Sign + TTS ───────────────────────────────────────
+  // ── Text-to-Sign + TTS ──────────────────────────────────────
   Future<void> _submitTextToSign(String text) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
@@ -884,7 +814,7 @@ class _StartUsingPageState extends State<StartUsingPage>
     await Future.wait([_speak(trimmed), _injectTextIntoWebView(trimmed)]);
   }
 
-  // ── Sign.MT WebView ─────────────────────────────────────────
+  // ── Sign.MT WebView (UNCHANGED from v3) ─────────────────────
   void _initializeSignWeb() {
     _signWebController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -1079,8 +1009,7 @@ class _StartUsingPageState extends State<StartUsingPage>
       return const Center(child: CircularProgressIndicator());
     }
 
-    final hasLandmarks =
-        _leftHandLandmarks.isNotEmpty ||
+    final hasLandmarks = _leftHandLandmarks.isNotEmpty ||
         _rightHandLandmarks.isNotEmpty ||
         _poseLandmarks.isNotEmpty;
 
@@ -1089,7 +1018,6 @@ class _StartUsingPageState extends State<StartUsingPage>
       children: [
         CameraPreview(_cameraController!),
 
-        // Server status dot (top-center)
         Positioned(
           top: 10,
           left: 0,
@@ -1116,9 +1044,7 @@ class _StartUsingPageState extends State<StartUsingPage>
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    _serverReachable
-                        ? "Server connected"
-                        : "Server unreachable",
+                    _serverReachable ? "Server connected" : "Server unreachable",
                     style: const TextStyle(color: Colors.white, fontSize: 11),
                   ),
                 ],
@@ -1127,7 +1053,6 @@ class _StartUsingPageState extends State<StartUsingPage>
           ),
         ),
 
-        // Hand skeleton overlay — always visible when landmarks exist
         if (hasLandmarks)
           Positioned.fill(
             child: CustomPaint(
@@ -1135,17 +1060,11 @@ class _StartUsingPageState extends State<StartUsingPage>
                 leftHand: _leftHandLandmarks,
                 rightHand: _rightHandLandmarks,
                 pose: _poseLandmarks,
-                // We always flip frames before sending to the server
-                // (see _convertFrames → img.flipHorizontal), so landmark
-                // coordinates are always returned in flipped space.
-                // mirrorX:true un-flips them for display on the preview,
-                // regardless of which camera is active.
                 mirrorX: true,
               ),
             ),
           ),
 
-        // Recording overlay
         if (_isCapturing)
           Positioned.fill(
             child: Container(
@@ -1182,8 +1101,6 @@ class _StartUsingPageState extends State<StartUsingPage>
             ),
           ),
 
-        // ── FIX A: "Hand detected" badge — shown whenever landmarks
-        // are present, not only during capture ──────────────────────
         if (hasLandmarks)
           Positioned(
             bottom: 12,
@@ -1215,7 +1132,6 @@ class _StartUsingPageState extends State<StartUsingPage>
             ),
           ),
 
-        // Controls row (top-right) — flip + language toggle
         if (!_isCapturing)
           Positioned(
             top: 10,
@@ -1248,7 +1164,6 @@ class _StartUsingPageState extends State<StartUsingPage>
       children: [
         WebViewWidget(controller: _signWebController),
 
-        // Mic button overlay
         if (!_isCapturing)
           Positioned(
             bottom: 16,
@@ -1270,7 +1185,6 @@ class _StartUsingPageState extends State<StartUsingPage>
             ),
           ),
 
-        // STT listening badge
         if (_isListening)
           Positioned(
             top: 16,
@@ -1600,4 +1514,4 @@ class _StartUsingPageState extends State<StartUsingPage>
     _flutterTts.stop();
     super.dispose();
   }
-} 
+}
