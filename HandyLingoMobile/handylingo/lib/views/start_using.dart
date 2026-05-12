@@ -381,10 +381,16 @@ class StartUsingPage extends StatefulWidget {
 
 class _StartUsingPageState extends State<StartUsingPage>
     with WidgetsBindingObserver {
+<<<<<<< HEAD
   // ── Server URLs ────────────────────────────────────────────
   // NEW v4 endpoint — accepts raw YUV/BGRA, no JPEG encoding.
   static const String _serverUrl   = "https://handylingo-handylingo-ai.hf.space/predict_yuv";
   static const String _landmarkUrl = "https://handylingo-handylingo-ai.hf.space/landmark";
+=======
+  // ── Server ──────────────────────────────────────────────────
+  static const String _serverUrl = "http://192.168.1.60:8001/predict";
+  static const String _landmarkUrl = "http://192.168.1.60:8001/landmark";
+>>>>>>> 11f636e6dbe3c7965ebca0b8af4f290bf5f58020
 
   bool _serverReachable = true;
 
